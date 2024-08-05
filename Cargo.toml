@@ -1,0 +1,28 @@
+[package]
+name = "faucet"
+description = "A faucet service for registering new subnet accounts and sending testnet funds."
+authors = ["ADM Contributors"]
+edition = "2021"
+homepage = "https://github.com/amazingdatamachine/adm/"
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/amazingdatamachine/adm/"
+keywords = ["TODO"]
+version = "0.1.0"
+
+[[bin]]
+name = "faucet"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1.0.82"
+clap = { version = "4.1.14", features = ["derive", "env"] }
+ethers = { version = "2.0.14", features = ["ws"] }
+hex = "0.4.3"
+log = "0.4.22"
+reqwest = { version = "0.11.27", features = ["json"] }
+serde = { version = "1.0.197", features = ["derive"] }
+serde_json = { version = "1.0.115", features = ["preserve_order"] }
+stderrlog = "0.6.0"
+tokio = { version = "1.37.0", features = ["full"] }
+warp = "0.3.7"
