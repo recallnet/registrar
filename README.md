@@ -5,14 +5,22 @@ tHOKU ERC20 contract can be found [here](https://github.com/amazingdatamachine/c
 ### Deployment
 
 #### Build faucet docker image
-`make build`
+```sh
+make build
+```
 
-#### Run the container
+#### Run the service
 
 - Private key is `tHOKU`'s deployer key
 -  Token address is the `tHOKU`'s (proxy) address
 
-`PRIVATE_KEY=<> TOKEN_ADDRESS=<> make run`
+```sh
+PRIVATE_KEY=<> TOKEN_ADDRESS=<> make run
+```
 
-#### Stop
-`make stop`
+#### Stop the service
+```sh 
+make stop
+```
+
+
