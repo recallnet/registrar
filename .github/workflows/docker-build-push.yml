@@ -4,6 +4,12 @@ on:
   push:
     branches: [ "main" ]
   workflow_dispatch:
+    inputs:
+      debug_enabled:
+        description: 'Run the build with tmate debugging enabled'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   build-and-push:
@@ -31,3 +37,7 @@ jobs:
 
     - name: Build using Makefile
       run: make build
+
+    - name: Setup tmate session
+      uses: mxschmitt/action-tmate@v3
+      if: ${{ failure() && inputs.debug_enabled }}
