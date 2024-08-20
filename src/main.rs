@@ -21,6 +21,9 @@ struct Cli {
     /// Silence logging.
     #[arg(short, long, env, default_value_t = false)]
     quiet: bool,
+    /// EVM RPC URL.
+    #[arg(long, env, default_value_t = String::from("http://localhost:8545"))]
+    rpc_url: String,
 }
 
 #[tokio::main]

@@ -5,6 +5,7 @@ IMAGE_NAME := faucet
 CONTAINER_NAME := faucet-container
 DOCKER_FILE := Dockerfile
 PORT := 8080
+RPC_PORT := 8545
 
 # Phony targets
 .PHONY: build run stop clean all
@@ -21,8 +22,10 @@ build:
 run:
 	@echo "Running Docker container..."
 	docker run -d --name $(CONTAINER_NAME) -p $(PORT):$(PORT) \
+		-p $(RPC_PORT):$(RPC_PORT) \
 		-e PRIVATE_KEY=$(PRIVATE_KEY) \
 		-e TOKEN_ADDRESS=$(TOKEN_ADDRESS) \
+		-e RPC_URL=$(RPC_URL) \
 		$(IMAGE_NAME)
 
 # Stop and remove the Docker container

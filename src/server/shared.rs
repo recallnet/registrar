@@ -75,3 +75,10 @@ pub fn with_token_address(
 ) -> impl Filter<Extract = (EthAddress,), Error = Infallible> + Clone {
     warp::any().map(move || token_address.clone())
 }
+
+/// Filter to pass the EVM RPC URL to the request handler.
+pub fn with_rpc_url(
+    rpc_url: String,
+) -> impl Filter<Extract = (String,), Error = Infallible> + Clone {
+    warp::any().map(move || rpc_url.clone())
+}

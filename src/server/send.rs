@@ -8,7 +8,7 @@ use std::sync::Arc;
 use warp::{Filter, Rejection, Reply};
 
 use crate::server::{
-    shared::{with_private_key, with_token_address, BadRequest, BaseRequest},
+    shared::{with_private_key, with_rpc_url, with_token_address, BadRequest, BaseRequest},
     util::log_request_body,
 };
 
@@ -20,13 +20,11 @@ abigen!(
 /// Amount to send from the faucet to the user.
 const FAUCET_AMOUNT: u64 = 5_000_000_000_000_000_000;
 
-/// Testnet Parent EVM RPC URL.
-const TESTNET_PARENT_EVM_RPC_URL: &str = "https://api.calibration.node.glif.io/rpc/v1";
-
 /// Route filter for `/send` endpoint.
 pub fn send_route(
     private_key: String,
     token_address: Address,
+    rpc_url: String,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     warp::path("send")
         .and(warp::post())
@@ -34,6 +32,7 @@ pub fn send_route(
         .and(warp::body::json())
         .and(with_private_key(private_key.clone()))
         .and(with_token_address(token_address.clone()))
+        .and(with_rpc_url(rpc_url.clone()))
         .and_then(handle_send)
 }
 
@@ -42,6 +41,7 @@ pub async fn handle_send(
     req: BaseRequest,
     private_key: String,
     token_address: Address,
+    rpc_url: String,
 ) -> anyhow::Result<impl Reply, Rejection> {
     log_request_body("send", &format!("{}", req));
 
@@ -51,7 +51,7 @@ pub async fn handle_send(
         })
     })?;
 
-    let res = send(eth_address, private_key, token_address)
+    let res = send(eth_address, private_key, token_address, rpc_url)
         .await
         .map_err(|e| {
             Rejection::from(BadRequest {
@@ -67,17 +67,15 @@ pub async fn send(
     address: Address,
     private_key: String,
     token_address: Address,
+    rpc_url: String,
 ) -> anyhow::Result<TxHash, Box<dyn Error>> {
-    let node_url = TESTNET_PARENT_EVM_RPC_URL;
-
+    let node_url = rpc_url;
     let provider = Provider::<Http>::try_from(node_url.to_string())?;
     let chain_id = provider.get_chainid().await?.as_u64();
 
     // Parse the private key from hex string
     let private_key_bytes = hex::decode(private_key)?;
     let wallet = LocalWallet::from_bytes(&private_key_bytes)?.with_chain_id(chain_id);
-
-    //let wallet = LocalWallet::from_bytes(private_key)?.with_chain_id(chain_id);
 
     // get balance of the given address
     let balance = provider.get_balance(address, None).await?;
