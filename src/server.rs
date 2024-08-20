@@ -13,9 +13,9 @@ pub async fn run(cli: Cli) -> anyhow::Result<()> {
     let faucet_sk = cli.private_key;
     let token_address = cli.token_address;
     let rpc_url = cli.rpc_url;
+    let listen_addr = format!("0.0.0.0:{}", cli.port);
     let send_route = send::send_route(faucet_sk.clone(), token_address, rpc_url);
     let log_request_details = warp::log::custom(log_request_details);
-    let listen_addr = "0.0.0.0:8080";
 
     let router = send_route
         .with(

@@ -16,9 +16,11 @@ make build
 
 - Private key is `tHOKU`'s deployer key
 - Token address is the `tHOKU`'s (proxy) address
+- Port is the port that the faucet service will listen on
+- RPC_URL is the URL of the EVM node
 
 ```sh
-PRIVATE_KEY=<> TOKEN_ADDRESS=<> RPC_URL=<> make run
+PRIVATE_KEY=<> TOKEN_ADDRESS=<> RPC_URL=<> PORT=<>make run
 ```
 
 #### Running locally with Anvil/Hardhat
@@ -28,7 +30,6 @@ PRIVATE_KEY=<> TOKEN_ADDRESS=<> RPC_URL=http://docker.host.internal:8545 make ru
 ```
 
 _Note: use docker's default networking bridge so app can connect to the local RPC node_
-
 
 ### Stop the service
 
