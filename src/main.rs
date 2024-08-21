@@ -21,6 +21,12 @@ struct Cli {
     /// Silence logging.
     #[arg(short, long, env, default_value_t = false)]
     quiet: bool,
+    /// EVM RPC URL.
+    #[arg(long, env, default_value_t = String::from("http://localhost:8545"))]
+    rpc_url: String,
+    /// Listen port for the faucet service.
+    #[arg(long, env, default_value_t = 8080)]
+    port: u16,
 }
 
 #[tokio::main]
