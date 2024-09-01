@@ -1,4 +1,3 @@
-use ethers::prelude::Address as EthAddress;
 use serde::{Deserialize, Serialize};
 use std::convert::Infallible;
 use warp::{http::StatusCode, Filter, Rejection, Reply};
@@ -67,13 +66,6 @@ pub fn with_private_key(
     private_key: String,
 ) -> impl Filter<Extract = (String,), Error = Infallible> + Clone {
     warp::any().map(move || private_key.clone())
-}
-
-/// Filter to pass the token address to the request handler.
-pub fn with_token_address(
-    token_address: EthAddress,
-) -> impl Filter<Extract = (EthAddress,), Error = Infallible> + Clone {
-    warp::any().map(move || token_address.clone())
 }
 
 /// Filter to pass the EVM RPC URL to the request handler.

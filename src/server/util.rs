@@ -24,7 +24,7 @@ pub fn log_request_details(request: Info) {
     match level {
         Level::Error => error!("{}", log_data),
         Level::Info => info!("{}", log_data),
-        // Only Error & Info are used (Trace, Debug, Warn also possible)
+        // Only Error & Info are used (Trace, Debug, Warn are also possible)
         _ => {}
     }
 }

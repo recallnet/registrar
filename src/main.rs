@@ -1,5 +1,4 @@
-use clap::Parser;
-use ethers::prelude::Address;
+use clap::{Parser, Subcommand};
 use stderrlog::Timestamp;
 
 use crate::server::run;
@@ -7,26 +6,34 @@ use crate::server::run;
 mod server;
 
 #[derive(Clone, Debug, Parser)]
-#[command(name = "adm_faucet", author, version, about, long_about = None)]
+#[command(name = "registrar", author, version, about, long_about = None)]
 struct Cli {
-    /// Wallet private key (ECDSA, secp256k1) for sending faucet funds.
+    #[command(subcommand)]
+    command: Commands,
+    /// Wallet private key (ECDSA, secp256k1) used to register new accounts.
     #[arg(short, long, env)]
     private_key: String,
-    /// Faucet token address.
-    #[arg(long, env)]
-    token_address: Address,
+    /// Host the service will bind to.
+    #[arg(long, env, default_value = "127.0.0.1")]
+    listen_host: String,
+    /// Port the service will bind to.
+    #[arg(long, env, default_value_t = 8080)]
+    listen_port: u16,
+    /// Target chain Ethereum RPC URL.
+    #[arg(long, env, default_value = "http://127.0.0.1:8545")]
+    evm_rpc_url: String,
     /// Logging verbosity (repeat for more verbose logging).
-    #[arg(short, long, env, action = clap::ArgAction::Count)]
+    #[arg(short, long, env, action = clap::ArgAction::Count, default_value = "3")]
     verbosity: u8,
     /// Silence logging.
     #[arg(short, long, env, default_value_t = false)]
     quiet: bool,
-    /// EVM RPC URL.
-    #[arg(long, env, default_value_t = String::from("http://localhost:8545"))]
-    rpc_url: String,
-    /// Listen port for the faucet service.
-    #[arg(long, env, default_value_t = 8080)]
-    port: u16,
+}
+
+#[derive(Clone, Debug, Subcommand)]
+enum Commands {
+    /// Start the registration service.
+    Start,
 }
 
 #[tokio::main]
@@ -38,8 +45,7 @@ async fn main() -> anyhow::Result<()> {
         .quiet(cli.quiet)
         .verbosity(cli.verbosity as usize)
         .timestamp(Timestamp::Millisecond)
-        .init()
-        .unwrap();
+        .init()?;
 
     run(cli).await
 }

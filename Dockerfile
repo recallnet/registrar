@@ -1,10 +1,10 @@
 FROM rust:latest AS builder
 RUN apt-get update && apt-get install -y musl-tools curl perl make gcc
 RUN rustup target add x86_64-unknown-linux-musl
-WORKDIR /usr/src/faucet
+WORKDIR /usr/src/registrar
 COPY ./ .
 RUN rustup component add rustfmt clippy
-ENV USER=faucet
+ENV USER=registrar
 ENV UID=10001
 RUN adduser \
     --disabled-password \
@@ -39,9 +39,9 @@ RUN RUSTFLAGS='-C target-feature=+crt-static' \
 FROM scratch
 COPY --from=builder /etc/passwd /etc/passwd
 COPY --from=builder /etc/group /etc/group
-COPY --from=builder /usr/src/faucet/target/x86_64-unknown-linux-musl/release/faucet /bin/app
+COPY --from=builder /usr/src/registrar/target/x86_64-unknown-linux-musl/release/registrar /bin/app
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /usr/local/ssl/lib64 /usr/local/ssl/lib64
-USER faucet:faucet
+USER registrar:registrar
 EXPOSE 8080
-CMD ["/bin/app"]
+CMD ["/bin/app", "start"]

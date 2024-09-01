@@ -1,17 +1,17 @@
 [package]
-name = "faucet"
-description = "A faucet service for registering new subnet accounts and sending testnet funds."
-authors = ["ADM Contributors"]
+name = "hoku_registrar"
+description = "An account registration service for Hoku."
+authors = ["Hoku Contributors"]
 edition = "2021"
-homepage = "https://github.com/amazingdatamachine/adm/"
+homepage = "https://github.com/hokunet/registrar/"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
-repository = "https://github.com/amazingdatamachine/adm/"
+repository = "https://github.com/hokunet/registrar/"
 keywords = ["TODO"]
 version = "0.1.0"
 
 [[bin]]
-name = "faucet"
+name = "registrar"
 path = "src/main.rs"
 
 [dependencies]
@@ -20,7 +20,7 @@ clap = { version = "4.1.14", features = ["derive", "env"] }
 ethers = { version = "2.0.14", features = ["ws"] }
 hex = "0.4.3"
 log = "0.4.22"
-reqwest = { version = "0.11.27", features = ["json"] }
+reqwest = { version = "0.12.7", features = ["json"] }
 serde = { version = "1.0.197", features = ["derive"] }
 serde_json = { version = "1.0.115", features = ["preserve_order"] }
 stderrlog = "0.6.0"
