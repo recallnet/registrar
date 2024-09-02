@@ -12,10 +12,10 @@ mod util;
 pub async fn run(cli: Cli) -> anyhow::Result<()> {
     let service_sk = cli.private_key;
     let evm_rpc_url = cli.evm_rpc_url;
-    let send_route = register::register_route(service_sk, evm_rpc_url);
+    let register = register::register_route(service_sk, evm_rpc_url, cli.send_amount);
     let log_request_details = warp::log::custom(log_request_details);
 
-    let router = send_route
+    let router = register
         .with(
             warp::cors()
                 .allow_any_origin()

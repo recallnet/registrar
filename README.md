@@ -30,6 +30,7 @@ make build
 - `LISTEN_HOST`: The host that the service will bind to. The defualt is `127.0.0.1`.
 - `LISTEN_PORT`: The port that the service will bind to. The default is `8080`.
 - `EVM_RPC_URL`: An Ethereum RPC URL of a Hoku validator. The default is `http://127.0.0.1:8545`.
+- `SEND_AMOUNT`: The amount of `HOKU` to send new accounts. The default is `1`.
 
 ```sh
 PRIVATE_KEY=<> make run

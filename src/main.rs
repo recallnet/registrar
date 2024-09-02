@@ -22,6 +22,9 @@ struct Cli {
     /// Target chain Ethereum RPC URL.
     #[arg(long, env, default_value = "http://127.0.0.1:8545")]
     evm_rpc_url: String,
+    /// Amount of HOKU to send new accounts.
+    #[arg(long, env, default_value_t = 1_000_000_000_000_000_000)]
+    send_amount: u64,
     /// Logging verbosity (repeat for more verbose logging).
     #[arg(short, long, env, action = clap::ArgAction::Count, default_value = "3")]
     verbosity: u8,

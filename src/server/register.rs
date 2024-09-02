@@ -10,19 +10,17 @@ use std::sync::Arc;
 use warp::{Filter, Rejection, Reply};
 
 use crate::server::{
-    shared::{with_private_key, with_rpc_url, BadRequest, BaseRequest},
+    shared::{with_private_key, with_rpc_url, with_send_amount, BadRequest, BaseRequest},
     util::log_request_body,
 };
 
 type DefaultSignerMiddleware = SignerMiddleware<Provider<Http>, Wallet<SigningKey>>;
 
-/// Amount to send new accounts to cover gas for a faucet drip.
-const SEND_AMOUNT: u64 = 1_000_000_000_000_000_000;
-
 /// Route filter for `/register` endpoint.
 pub fn register_route(
     private_key: String,
     rpc_url: String,
+    send_amount: u64,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     warp::path("register")
         .and(warp::post())
@@ -30,6 +28,7 @@ pub fn register_route(
         .and(warp::body::json())
         .and(with_private_key(private_key.clone()))
         .and(with_rpc_url(rpc_url.clone()))
+        .and(with_send_amount(send_amount))
         .and_then(handle_register)
 }
 
@@ -38,6 +37,7 @@ pub async fn handle_register(
     req: BaseRequest,
     private_key: String,
     rpc_url: String,
+    send_amount: u64,
 ) -> anyhow::Result<impl Reply, Rejection> {
     log_request_body("register", &format!("{}", req));
 
@@ -47,22 +47,24 @@ pub async fn handle_register(
         })
     })?;
 
-    let res = send(eth_address, private_key, rpc_url).await.map_err(|e| {
-        Rejection::from(BadRequest {
-            message: format!("register error: {}", e),
-        })
-    })?;
+    let res = send(eth_address, private_key, rpc_url, send_amount)
+        .await
+        .map_err(|e| {
+            Rejection::from(BadRequest {
+                message: format!("register error: {}", e),
+            })
+        })?;
     let json = json!({"tx_hash": res.transaction_hash});
     Ok(warp::reply::json(&json))
 }
 
 /// Sends a small value to an address on the subnet.
 /// This will trigger the FVM to create an account for the address.
-/// TODO: Only send if the account doesn't exist.
 pub async fn send(
     address: Address,
     private_key: String,
     rpc_url: String,
+    send_amount: u64,
 ) -> anyhow::Result<TransactionReceipt> {
     let node_url = rpc_url;
     let provider = Provider::<Http>::try_from(node_url.to_string())?;
@@ -77,7 +79,7 @@ pub async fn send(
     let (fee, fee_cap) = premium_estimation(client.clone()).await?;
     let tx = Eip1559TransactionRequest::new()
         .to(address)
-        .value(SEND_AMOUNT)
+        .value(send_amount)
         .max_priority_fee_per_gas(fee)
         .max_fee_per_gas(fee_cap);
     let tx_pending = client.send_transaction(tx, None).await?;
@@ -152,7 +154,7 @@ fn estimate_priority_fee(rewards: Vec<Vec<U256>>) -> U256 {
     rewards.sort();
 
     // A copy of the same vector is created for convenience to calculate percentage change
-    // between subsequent fee values.
+    // between later fee values.
     let mut rewards_copy = rewards.clone();
     rewards_copy.rotate_left(1);
 

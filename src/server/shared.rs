@@ -74,3 +74,10 @@ pub fn with_rpc_url(
 ) -> impl Filter<Extract = (String,), Error = Infallible> + Clone {
     warp::any().map(move || rpc_url.clone())
 }
+
+/// Filter to pass the amount to send to the request handler.
+pub fn with_send_amount(
+    send_amount: u64,
+) -> impl Filter<Extract = (u64,), Error = Infallible> + Clone {
+    warp::any().map(move || send_amount)
+}
