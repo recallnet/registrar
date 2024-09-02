@@ -1,10 +1,9 @@
-# Makefile for faucet Docker container
+# Makefile for registrar Docker container
 
 # Variables
-IMAGE_NAME := faucet
-CONTAINER_NAME := faucet-container
+IMAGE_NAME := registrar
+CONTAINER_NAME := registrar
 DOCKER_FILE := Dockerfile
-RPC_PORT := 8545
 
 # Phony targets
 .PHONY: build run stop clean all
@@ -20,22 +19,29 @@ build:
 # Run the Docker container
 run:
 	@echo "Running Docker container..."
-	docker run -d --name $(CONTAINER_NAME) -p $(PORT):$(PORT) \
+	docker run -d \
+		--name $(CONTAINER_NAME) \
+		-p $(LISTEN_HOST):$(LISTEN_PORT):$(LISTEN_PORT) \
 		-e PRIVATE_KEY=$(PRIVATE_KEY) \
-		-e TOKEN_ADDRESS=$(TOKEN_ADDRESS) \
-		-e RPC_URL=$(RPC_URL) \
-		-e PORT=$(PORT) \
+		-e LISTEN_HOST=$(LISTEN_HOST) \
+		-e LISTEN_PORT=$(LISTEN_PORT) \
+		-e EVM_RPC_URL=$(EVM_RPC_URL) \
+		-e SEND_AMOUNT=$(SEND_AMOUNT) \
+		-e VERBOSITY=$(VERBOSITY) \
 		$(IMAGE_NAME)
 
-# Maps the EVM RPC port to the host machine
+# Run the Docker container
 run-local:
-	@echo "Running Docker container..."
-	docker run -d --name $(CONTAINER_NAME) -p $(PORT):$(PORT) \
-		-p $(RPC_PORT):$(RPC_PORT) \
+	@echo "Running Docker container on host network..."
+	docker run -d \
+		--network host \
+		--name $(CONTAINER_NAME) \
 		-e PRIVATE_KEY=$(PRIVATE_KEY) \
-		-e TOKEN_ADDRESS=$(TOKEN_ADDRESS) \
-		-e RPC_URL=$(RPC_URL) \
-		-e PORT=$(PORT) \
+		-e LISTEN_HOST=$(LISTEN_HOST) \
+		-e LISTEN_PORT=$(LISTEN_PORT) \
+		-e EVM_RPC_URL=$(EVM_RPC_URL) \
+		-e SEND_AMOUNT=$(SEND_AMOUNT) \
+		-e VERBOSITY=$(VERBOSITY) \
 		$(IMAGE_NAME)
 
 # Stop and remove the Docker container

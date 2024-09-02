@@ -4,20 +4,18 @@ use warp::Filter;
 
 use crate::Cli;
 
-mod send;
+mod register;
 mod shared;
 mod util;
 
-/// Server entrypoint for the faucet service.
+/// Server entrypoint for the service.
 pub async fn run(cli: Cli) -> anyhow::Result<()> {
-    let faucet_sk = cli.private_key;
-    let token_address = cli.token_address;
-    let rpc_url = cli.rpc_url;
-    let listen_addr = format!("0.0.0.0:{}", cli.port);
-    let send_route = send::send_route(faucet_sk.clone(), token_address, rpc_url);
+    let service_sk = cli.private_key;
+    let evm_rpc_url = cli.evm_rpc_url;
+    let register = register::register_route(service_sk, evm_rpc_url, cli.send_amount);
     let log_request_details = warp::log::custom(log_request_details);
 
-    let router = send_route
+    let router = register
         .with(
             warp::cors()
                 .allow_any_origin()
@@ -27,7 +25,8 @@ pub async fn run(cli: Cli) -> anyhow::Result<()> {
         .with(log_request_details)
         .recover(shared::handle_rejection);
 
-    info!("Starting server at {}", listen_addr);
+    let listen_addr = format!("{}:{}", cli.listen_host, cli.listen_port);
+    info!("Service listening on {}", listen_addr);
     let socket_addr: std::net::SocketAddr = listen_addr.parse()?;
     warp::serve(router).run(socket_addr).await;
     Ok(())
