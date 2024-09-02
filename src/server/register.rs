@@ -16,6 +16,9 @@ use crate::server::{
 
 type DefaultSignerMiddleware = SignerMiddleware<Provider<Http>, Wallet<SigningKey>>;
 
+/// Amount to send new accounts to cover gas for a faucet drip.
+const SEND_AMOUNT: u64 = 1_000_000_000_000_000_000;
+
 /// Route filter for `/register` endpoint.
 pub fn register_route(
     private_key: String,
@@ -44,20 +47,19 @@ pub async fn handle_register(
         })
     })?;
 
-    let res = send_zero(eth_address, private_key, rpc_url)
-        .await
-        .map_err(|e| {
-            Rejection::from(BadRequest {
-                message: format!("register error: {}", e),
-            })
-        })?;
+    let res = send(eth_address, private_key, rpc_url).await.map_err(|e| {
+        Rejection::from(BadRequest {
+            message: format!("register error: {}", e),
+        })
+    })?;
     let json = json!({"tx_hash": res.transaction_hash});
     Ok(warp::reply::json(&json))
 }
 
-/// Sends zero value to an address on the subnet.
+/// Sends a small value to an address on the subnet.
 /// This will trigger the FVM to create an account for the address.
-pub async fn send_zero(
+/// TODO: Only send if the account doesn't exist.
+pub async fn send(
     address: Address,
     private_key: String,
     rpc_url: String,
@@ -75,7 +77,7 @@ pub async fn send_zero(
     let (fee, fee_cap) = premium_estimation(client.clone()).await?;
     let tx = Eip1559TransactionRequest::new()
         .to(address)
-        .value(U256::zero())
+        .value(SEND_AMOUNT)
         .max_priority_fee_per_gas(fee)
         .max_fee_per_gas(fee_cap);
     let tx_pending = client.send_transaction(tx, None).await?;

@@ -8,7 +8,7 @@
 ## Background
 
 This web-based service facilitates the creation of new Hoku accounts.
-It triggers the FEVM to create the account with a zero-value token transfer from the service's wallet.
+It triggers the FEVM to create the account with a small token transfer from the service's wallet.
 
 ## Usage
 
