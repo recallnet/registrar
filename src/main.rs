@@ -1,4 +1,5 @@
 use clap::{Parser, Subcommand};
+use ethers::prelude::Address;
 use stderrlog::Timestamp;
 
 use crate::server::run;
@@ -13,18 +14,18 @@ struct Cli {
     /// Wallet private key (ECDSA, secp256k1) used to register new accounts.
     #[arg(short, long, env)]
     private_key: String,
+    /// HOKU faucet contract address.
+    #[arg(long, env)]
+    faucet_address: Address,
+    /// Target chain Ethereum RPC URL.
+    #[arg(long, env, default_value = "http://127.0.0.1:8545")]
+    evm_rpc_url: String,
     /// Host the service will bind to.
     #[arg(long, env, default_value = "127.0.0.1")]
     listen_host: String,
     /// Port the service will bind to.
     #[arg(long, env, default_value_t = 8080)]
     listen_port: u16,
-    /// Target chain Ethereum RPC URL.
-    #[arg(long, env, default_value = "http://127.0.0.1:8545")]
-    evm_rpc_url: String,
-    /// Amount of HOKU to send new accounts.
-    #[arg(long, env, default_value_t = 1_000_000_000_000_000_000)]
-    send_amount: u64,
     /// Logging verbosity (repeat for more verbose logging).
     #[arg(short, long, env, action = clap::ArgAction::Count, default_value = "3")]
     verbosity: u8,

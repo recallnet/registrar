@@ -8,7 +8,8 @@
 ## Background
 
 This web-based service facilitates the creation of new Hoku accounts.
-It triggers the FEVM to create the account with a small token transfer from the service's wallet.
+It triggers the FEVM to create accounts by calling
+the [Hoku Faucet](https://github.com/hokunet/contracts/blob/main/src/Faucet.sol)'s `drip` method from a service wallet.
 
 ## Usage
 
@@ -27,16 +28,17 @@ make build
 ### Run the service
 
 - `PRIVATE_KEY`: A private key from any wallet that exists on the Hoku chain and has non-zero `HOKU` balance.
+- `FAUCET_ADDRESS`: The contract address of
+  a [Hoku Faucet](https://github.com/hokunet/contracts/blob/main/src/Faucet.sol).
+- `EVM_RPC_URL`: An Ethereum RPC URL of a Hoku validator. The default is `http://127.0.0.1:8545`.
 - `LISTEN_HOST`: The host that the service will bind to. The defualt is `127.0.0.1`.
 - `LISTEN_PORT`: The port that the service will bind to. The default is `8080`.
-- `EVM_RPC_URL`: An Ethereum RPC URL of a Hoku validator. The default is `http://127.0.0.1:8545`.
-- `SEND_AMOUNT`: The amount of `HOKU` to send new accounts. The default is `1`.
 
 ```sh
-PRIVATE_KEY=<> make run
+PRIVATE_KEY=<> FAUCET_ADDRESS=<> make run
 ```
 
-For local testing, use make run-local.
+For local testing, use `make run-local`.
 This command configures Docker to use host networking,
 which is helpful for testing against a locally running Anvil, Hardhat, or Hoku node.
 

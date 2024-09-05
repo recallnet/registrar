@@ -6,10 +6,20 @@ CONTAINER_NAME := registrar
 DOCKER_FILE := Dockerfile
 
 # Phony targets
-.PHONY: build run stop clean all
+.PHONY: all lint check-fmt check-clippy build run run-local stop clean attach
 
 # Default target
-all: build run
+all: lint build run
+
+lint: \
+	check-fmt \
+	check-clippy
+
+check-fmt:
+	cargo fmt --all --check
+
+check-clippy:
+	cargo clippy --no-deps --tests -- -D clippy::all
 
 # Build the Docker image
 build:
@@ -23,10 +33,10 @@ run:
 		--name $(CONTAINER_NAME) \
 		-p $(LISTEN_HOST):$(LISTEN_PORT):$(LISTEN_PORT) \
 		-e PRIVATE_KEY=$(PRIVATE_KEY) \
+		-e FAUCET_ADDRESS=$(FAUCET_ADDRESS) \
+		-e EVM_RPC_URL=$(EVM_RPC_URL) \
 		-e LISTEN_HOST=$(LISTEN_HOST) \
 		-e LISTEN_PORT=$(LISTEN_PORT) \
-		-e EVM_RPC_URL=$(EVM_RPC_URL) \
-		-e SEND_AMOUNT=$(SEND_AMOUNT) \
 		-e VERBOSITY=$(VERBOSITY) \
 		$(IMAGE_NAME)
 
@@ -37,10 +47,10 @@ run-local:
 		--network host \
 		--name $(CONTAINER_NAME) \
 		-e PRIVATE_KEY=$(PRIVATE_KEY) \
+		-e FAUCET_ADDRESS=$(FAUCET_ADDRESS) \
+		-e EVM_RPC_URL=$(EVM_RPC_URL) \
 		-e LISTEN_HOST=$(LISTEN_HOST) \
 		-e LISTEN_PORT=$(LISTEN_PORT) \
-		-e EVM_RPC_URL=$(EVM_RPC_URL) \
-		-e SEND_AMOUNT=$(SEND_AMOUNT) \
 		-e VERBOSITY=$(VERBOSITY) \
 		$(IMAGE_NAME)
 

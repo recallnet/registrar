@@ -1,6 +1,16 @@
-use serde::{Deserialize, Serialize};
 use std::convert::Infallible;
+
+use ethers::prelude::{abigen, k256::ecdsa::SigningKey, Http, Provider, SignerMiddleware, Wallet};
+use serde::{Deserialize, Serialize};
 use warp::{http::StatusCode, Filter, Rejection, Reply};
+
+abigen!(
+    FaucetContract,
+    r#"[{"name": "drip","type": "function","inputs": [{"name": "recipient","type": "address","internalType": "address payable"}],"outputs": [],"stateMutability": "nonpayable"}]"#
+);
+
+pub type DefaultSignerMiddleware = SignerMiddleware<Provider<Http>, Wallet<SigningKey>>;
+pub type Faucet = FaucetContract<DefaultSignerMiddleware>;
 
 /// Generic base request for all routes.
 #[derive(Deserialize)]
@@ -61,23 +71,7 @@ pub async fn handle_rejection(err: Rejection) -> Result<impl Reply, Infallible> 
     Ok(warp::reply::with_status(reply, code))
 }
 
-/// Filter to pass the private key to the request handler.
-pub fn with_private_key(
-    private_key: String,
-) -> impl Filter<Extract = (String,), Error = Infallible> + Clone {
-    warp::any().map(move || private_key.clone())
-}
-
-/// Filter to pass the EVM RPC URL to the request handler.
-pub fn with_rpc_url(
-    rpc_url: String,
-) -> impl Filter<Extract = (String,), Error = Infallible> + Clone {
-    warp::any().map(move || rpc_url.clone())
-}
-
-/// Filter to pass the amount to send to the request handler.
-pub fn with_send_amount(
-    send_amount: u64,
-) -> impl Filter<Extract = (u64,), Error = Infallible> + Clone {
-    warp::any().map(move || send_amount)
+/// Filter to pass the faucet to the request handler.
+pub fn with_faucet(faucet: Faucet) -> impl Filter<Extract = (Faucet,), Error = Infallible> + Clone {
+    warp::any().map(move || faucet.clone())
 }
