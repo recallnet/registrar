@@ -29,7 +29,7 @@ RUN curl -L https://github.com/openssl/openssl/releases/download/openssl-3.3.1/o
 ENV OPENSSL_DIR=/usr/local/ssl
 ENV OPENSSL_STATIC=1
 ENV PKG_CONFIG_PATH=/usr/local/ssl/lib64/pkgconfig
-ENV LD_LIBRARY_PATH=/usr/local/ssl/lib64:$LD_LIBRARY_PATH
+ENV LD_LIBRARY_PATH=/usr/local/ssl/lib64
 
 # Build the Rust application
 RUN RUSTFLAGS='-C target-feature=+crt-static' \
