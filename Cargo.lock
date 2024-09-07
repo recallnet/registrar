@@ -1519,6 +1519,7 @@ dependencies = [
  "ethers",
  "hex",
  "log",
+ "once_cell",
  "reqwest 0.12.7",
  "serde",
  "serde_json",
