@@ -14,7 +14,49 @@ the [Hoku Faucet](https://github.com/hokunet/contracts/blob/main/src/Faucet.sol)
 ## Usage
 
 ```sh
-curl -X POST -H 'Content-Type: application/json' 'http://<LISTEN_HOST:LISTEN_HOST>/register' --data-raw '{"address":"0xfoobar"}'
+curl -X POST -H 'Content-Type: application/json' 'http://<LISTEN_HOST:LISTEN_HOST>/register' --data-raw '{"address": "0xfoobar"}'
+```
+
+```json
+{
+  "tx_hash": "0x4118b732581c3ab9134b2619434197323c5d55c591611e98206645ba84a4b75e"
+}
+```
+
+Use `"wait": false` to return the transaction hash immediately, without waiting for confirmation. By default, the
+request waits for confirmation.
+
+```sh
+curl -X POST -H 'Content-Type: application/json' 'http://<LISTEN_HOST>:<LISTEN_HOST>/register' --data-raw '{"address": "0xfoobar", "wait": false}'
+```
+
+### Errors
+
+#### 400 Bad Request
+
+```json
+{
+  "code": 400,
+  "message": "<error detail>"
+}
+```
+
+#### 429 Too Many Requests
+
+```json
+{
+  "code": 429,
+  "message": "too many requests"
+}
+```
+
+#### 503 Service Unavailable
+
+```json
+{
+  "code": 503,
+  "message": "faucet empty"
+}
 ```
 
 ## Development

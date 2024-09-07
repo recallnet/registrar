@@ -58,7 +58,7 @@ struct ErrorMessage {
 /// Rejection handler.
 pub async fn handle_rejection(err: Rejection) -> Result<impl Reply, Infallible> {
     let (code, message) = if err.is_not_found() {
-        (StatusCode::NOT_FOUND, "Not Found".to_string())
+        (StatusCode::NOT_FOUND, "not found".to_string())
     } else if let Some(e) = err.find::<BadRequest>() {
         (StatusCode::BAD_REQUEST, e.message.clone())
     } else if let Some(_) = err.find::<TooManyRequests>() {
@@ -71,19 +71,19 @@ pub async fn handle_rejection(err: Rejection) -> Result<impl Reply, Infallible> 
     } else if let Some(e) = err.find::<warp::filters::body::BodyDeserializeError>() {
         (
             StatusCode::BAD_REQUEST,
-            format!("Invalid Request Body: {}", e),
+            format!("invalid request body: {}", e),
         )
     } else if err.find::<warp::reject::InvalidHeader>().is_some() {
-        (StatusCode::BAD_REQUEST, "Invalid Header Value".to_string())
+        (StatusCode::BAD_REQUEST, "invalid header value".to_string())
     } else if err.find::<warp::reject::MethodNotAllowed>().is_some() {
         (
             StatusCode::METHOD_NOT_ALLOWED,
-            "Method Not Allowed".to_string(),
+            "method not allowed".to_string(),
         )
     } else {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
-            "Internal Server Error".to_string(),
+            "internal server error".to_string(),
         )
     };
 
