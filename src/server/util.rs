@@ -1,15 +1,12 @@
-use log::{error, info, Level};
+use log::{error, info};
 use serde_json::json;
 use warp::log::Info;
 
-/// Helper function to log details for each request at specific verbosity levels
-/// ([Level::Info] or [Level::Error]).
-pub fn log_request_details(request: Info) {
-    let level = if request.status().as_u16() >= 500 {
-        Level::Error
-    } else {
-        Level::Info
-    };
+/// Helper function to log details for failed requests.
+pub fn log_failed_request(request: Info) {
+    if request.status().as_u16() < 400 {
+        return;
+    }
     let addr = request
         .remote_addr()
         .unwrap_or_else(|| ([0, 0, 0, 0], 0).into());
@@ -21,12 +18,7 @@ pub fn log_request_details(request: Info) {
         "client_addr": addr,
         "duration_ms": duration
     });
-    match level {
-        Level::Error => error!("{}", log_data),
-        Level::Info => info!("{}", log_data),
-        // Only Error & Info are used (Trace, Debug, Warn are also possible)
-        _ => {}
-    }
+    error!("{}", log_data)
 }
 
 /// Helper function to log the incoming request body for a route when

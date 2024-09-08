@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use ethers::prelude::{Http, LocalWallet, Middleware, Provider, Signer, SignerMiddleware};
 use log::info;
-use util::log_request_details;
+use util::log_failed_request;
 use warp::{Filter, Rejection, Reply};
 
 use crate::server::shared::{DefaultSignerMiddleware, Faucet, FaucetContract};
@@ -29,7 +29,7 @@ pub async fn run(cli: Cli) -> anyhow::Result<()> {
         .and(warp::get())
         .and_then(handle_health);
     let register_route = register::register_route(faucet);
-    let log_request_details = warp::log::custom(log_request_details);
+    let log = warp::log::custom(log_failed_request);
 
     let router = health_route
         .or(register_route)
@@ -39,8 +39,8 @@ pub async fn run(cli: Cli) -> anyhow::Result<()> {
                 .allow_headers(vec!["Content-Type"])
                 .allow_methods(vec!["GET", "POST"]),
         )
-        .with(log_request_details)
-        .recover(shared::handle_rejection);
+        .recover(shared::handle_rejection)
+        .with(log);
 
     let listen_addr = format!("{}:{}", cli.listen_host, cli.listen_port);
     info!("service listening on {}", listen_addr);
