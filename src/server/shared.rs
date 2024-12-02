@@ -6,7 +6,7 @@ use warp::{http::StatusCode, Filter, Rejection, Reply};
 
 abigen!(
     FaucetContract,
-    r#"[{"name": "drip","type": "function","inputs": [{"name": "recipient","type": "address","internalType": "address payable"}],"outputs": [],"stateMutability": "nonpayable"}]"#
+    r#"[{"name": "drip","type": "function","inputs": [{"name": "recipient","type": "address","internalType": "address payable"}, {"name": "key","type": "string","internalType": "string"}],"outputs": [],"stateMutability": "nonpayable"}]"#
 );
 
 pub type DefaultSignerMiddleware = SignerMiddleware<Provider<Http>, Wallet<SigningKey>>;

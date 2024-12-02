@@ -9,6 +9,7 @@ use ethers::utils::keccak256;
 use once_cell::sync::Lazy;
 use serde_json::json;
 use warp::{Filter, Rejection, Reply};
+use std::net::SocketAddr;
 
 static TRY_LATER_SELECTOR: Lazy<Vec<u8>> = Lazy::new(|| keccak256(b"TryLater()")[0..4].into());
 static FAUCET_EMPTY_SELECTOR: Lazy<Vec<u8>> =
@@ -31,6 +32,7 @@ pub fn register_route(
         .and(warp::post())
         .and(warp::header::exact("content-type", "application/json"))
         .and(warp::body::json())
+        .and(warp::addr::remote())
         .and(with_faucet(faucet))
         .and_then(handle_register)
 }
@@ -38,9 +40,14 @@ pub fn register_route(
 /// Handles the `/register` request.
 pub async fn handle_register(
     req: RegisterRequest,
+    addr: Option<SocketAddr>,
     faucet: Faucet,
 ) -> anyhow::Result<impl Reply, Rejection> {
     log_request_body("register", &format!("{}", req));
+
+    let addr = addr.ok_or(Rejection::from(BadRequest {
+        message: format!("could not resolve ip address"),
+    }))?;
 
     let to_address = req.address.parse::<Address>().map_err(|e| {
         Rejection::from(BadRequest {
@@ -48,7 +55,7 @@ pub async fn handle_register(
         })
     })?;
 
-    let res = drip(faucet, to_address, req.wait).await.map_err(|e| {
+    let res = drip(faucet, to_address, addr.ip().to_string(), req.wait).await.map_err(|e| {
         Rejection::from(BadRequest {
             message: format!("register error: {}", e),
         })
@@ -68,9 +75,10 @@ pub async fn handle_register(
 async fn drip(
     faucet: Faucet,
     to_address: Address,
+    key: String,
     wait: Option<bool>,
 ) -> anyhow::Result<DripResult> {
-    let tx = faucet.drip(to_address);
+    let tx = faucet.drip(to_address, key);
     let tx_pending = tx.send().await;
     match tx_pending {
         Ok(tx) => {
