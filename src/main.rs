@@ -14,6 +14,9 @@ struct Cli {
     /// Wallet private key (ECDSA, secp256k1) used to register new accounts.
     #[arg(short, long, env)]
     private_key: String,
+    /// Cloudflare secret key.
+    #[arg(short, long, env)]
+    ts_secret: String,
     /// HOKU faucet contract address.
     #[arg(long, env)]
     faucet_address: Address,
