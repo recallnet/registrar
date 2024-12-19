@@ -1,12 +1,14 @@
 use std::convert::Infallible;
+use std::sync::Arc;
 
+use cf_turnstile::TurnstileClient;
 use ethers::prelude::{abigen, k256::ecdsa::SigningKey, Http, Provider, SignerMiddleware, Wallet};
 use serde::{Deserialize, Serialize};
 use warp::{http::StatusCode, Filter, Rejection, Reply};
 
 abigen!(
     FaucetContract,
-    r#"[{"name": "drip","type": "function","inputs": [{"name": "recipient","type": "address","internalType": "address payable"}],"outputs": [],"stateMutability": "nonpayable"}]"#
+    r#"[{"name": "drip","type": "function","inputs": [{"name": "recipient","type": "address","internalType": "address payable"}, {"internalType":"string[]","name":"keys","type":"string[]"}],"outputs": [],"stateMutability": "nonpayable"}]"#
 );
 
 pub type DefaultSignerMiddleware = SignerMiddleware<Provider<Http>, Wallet<SigningKey>>;
@@ -17,6 +19,8 @@ pub type Faucet = FaucetContract<DefaultSignerMiddleware>;
 pub struct RegisterRequest {
     /// The address to register.
     pub address: String,
+    /// The Cloudflare Turnstile response to validate.
+    pub ts_response: String,
     /// Whether to wait for the transaction to complete.
     /// Default is true.
     pub wait: Option<bool>,
@@ -61,12 +65,12 @@ pub async fn handle_rejection(err: Rejection) -> Result<impl Reply, Infallible> 
         (StatusCode::NOT_FOUND, "not found".to_string())
     } else if let Some(e) = err.find::<BadRequest>() {
         (StatusCode::BAD_REQUEST, e.message.clone())
-    } else if let Some(_) = err.find::<TooManyRequests>() {
+    } else if err.find::<TooManyRequests>().is_some() {
         (
             StatusCode::TOO_MANY_REQUESTS,
             "too many requests".to_string(),
         )
-    } else if let Some(_) = err.find::<FaucetEmpty>() {
+    } else if err.find::<FaucetEmpty>().is_some() {
         (StatusCode::SERVICE_UNAVAILABLE, "faucet empty".to_string())
     } else if let Some(e) = err.find::<warp::filters::body::BodyDeserializeError>() {
         (
@@ -97,4 +101,11 @@ pub async fn handle_rejection(err: Rejection) -> Result<impl Reply, Infallible> 
 /// Filter to pass the faucet to the request handler.
 pub fn with_faucet(faucet: Faucet) -> impl Filter<Extract = (Faucet,), Error = Infallible> + Clone {
     warp::any().map(move || faucet.clone())
+}
+
+/// Filter to pass the Cloudflare Turnstile client to the request handler.
+pub fn with_turnstile(
+    turnstile: Arc<TurnstileClient>,
+) -> impl Filter<Extract = (Arc<TurnstileClient>,), Error = Infallible> + Clone {
+    warp::any().map(move || turnstile.clone())
 }

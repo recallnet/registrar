@@ -1,13 +1,16 @@
 use crate::server::shared::{DefaultSignerMiddleware, Faucet, FaucetEmpty, TooManyRequests};
 use crate::server::{
-    shared::{with_faucet, BadRequest, RegisterRequest},
+    shared::{with_faucet, with_turnstile, BadRequest, RegisterRequest},
     util::log_request_body,
 };
 use anyhow::anyhow;
+use cf_turnstile::{SiteVerifyRequest, TurnstileClient};
 use ethers::prelude::{Address, ContractError, TxHash};
 use ethers::utils::keccak256;
 use once_cell::sync::Lazy;
 use serde_json::json;
+use std::net::SocketAddr;
+use std::sync::Arc;
 use warp::{Filter, Rejection, Reply};
 
 static TRY_LATER_SELECTOR: Lazy<Vec<u8>> = Lazy::new(|| keccak256(b"TryLater()")[0..4].into());
@@ -26,21 +29,30 @@ enum DripResult {
 /// Route filter for `/register` endpoint.
 pub fn register_route(
     faucet: Faucet,
+    turnstile: Arc<TurnstileClient>,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     warp::path("register")
         .and(warp::post())
         .and(warp::header::exact("content-type", "application/json"))
         .and(warp::body::json())
+        .and(warp::addr::remote())
         .and(with_faucet(faucet))
+        .and(with_turnstile(turnstile))
         .and_then(handle_register)
 }
 
 /// Handles the `/register` request.
 pub async fn handle_register(
     req: RegisterRequest,
+    addr: Option<SocketAddr>,
     faucet: Faucet,
+    turnstile: Arc<TurnstileClient>,
 ) -> anyhow::Result<impl Reply, Rejection> {
     log_request_body("register", &format!("{}", req));
+
+    let addr = addr.ok_or(Rejection::from(BadRequest {
+        message: "could not resolve ip address".to_string(),
+    }))?;
 
     let to_address = req.address.parse::<Address>().map_err(|e| {
         Rejection::from(BadRequest {
@@ -48,7 +60,32 @@ pub async fn handle_register(
         })
     })?;
 
-    let res = drip(faucet, to_address, req.wait).await.map_err(|e| {
+    let validated = turnstile
+        .siteverify(SiteVerifyRequest {
+            response: req.ts_response,
+            ..Default::default()
+        })
+        .await
+        .map_err(|e| {
+            Rejection::from(BadRequest {
+                message: format!("turnstile error: {}", e),
+            })
+        })?;
+
+    if !validated.success {
+        return Err(Rejection::from(BadRequest {
+            message: "turnstile validation failed".to_string(),
+        }));
+    }
+
+    let res = drip(
+        faucet,
+        to_address,
+        vec![to_address.to_string(), addr.ip().to_string()],
+        req.wait,
+    )
+    .await
+    .map_err(|e| {
         Rejection::from(BadRequest {
             message: format!("register error: {}", e),
         })
@@ -68,14 +105,15 @@ pub async fn handle_register(
 async fn drip(
     faucet: Faucet,
     to_address: Address,
+    keys: Vec<String>,
     wait: Option<bool>,
 ) -> anyhow::Result<DripResult> {
-    let tx = faucet.drip(to_address);
+    let tx = faucet.drip(to_address, keys);
     let tx_pending = tx.send().await;
     match tx_pending {
         Ok(tx) => {
             let hash = tx.tx_hash();
-            let wait = if let Some(wait) = wait { wait } else { true };
+            let wait = wait.unwrap_or(true);
             if wait {
                 tx.await?.ok_or(anyhow!("drip did not return a receipt"))?;
                 Ok(DripResult::Success(hash))

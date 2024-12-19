@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use cf_turnstile::TurnstileClient;
 use ethers::prelude::{Http, LocalWallet, Middleware, Provider, Signer, SignerMiddleware};
 use log::info;
 use util::log_failed_request;
@@ -24,11 +25,12 @@ pub async fn run(cli: Cli) -> anyhow::Result<()> {
     let client: DefaultSignerMiddleware = SignerMiddleware::new(provider, wallet);
     let client = Arc::new(client);
     let faucet: Faucet = FaucetContract::new(faucet_address, client);
+    let turnstile = TurnstileClient::new(cli.ts_secret.into());
 
     let health_route = warp::path!("health")
         .and(warp::get())
         .and_then(handle_health);
-    let register_route = register::register_route(faucet);
+    let register_route = register::register_route(faucet, Arc::new(turnstile));
     let log = warp::log::custom(log_failed_request);
 
     let router = health_route
