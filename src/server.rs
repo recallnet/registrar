@@ -9,8 +9,9 @@ use warp::{Filter, Rejection, Reply};
 use crate::server::shared::{DefaultSignerMiddleware, Faucet, FaucetContract};
 use crate::Cli;
 
-mod register;
+mod drip;
 mod shared;
+mod register;
 mod util;
 
 /// Server entrypoint for the service.
@@ -24,24 +25,26 @@ pub async fn run(cli: Cli) -> anyhow::Result<()> {
     let wallet = LocalWallet::from_bytes(&private_key)?.with_chain_id(chain_id);
     let client: DefaultSignerMiddleware = SignerMiddleware::new(provider, wallet);
     let client = Arc::new(client);
-    let faucet: Faucet = FaucetContract::new(faucet_address, client);
-    let turnstile = TurnstileClient::new(cli.ts_secret.into());
+    let faucet: Faucet = FaucetContract::new(faucet_address, client.clone());
+    let turnstile = TurnstileClient::new(cli.ts_secret_key.into());
 
     let health_route = warp::path!("health")
         .and(warp::get())
         .and_then(handle_health);
-    let register_route = register::register_route(faucet, Arc::new(turnstile));
+    let register_route = register::register_route(client.clone());
+    let drip_route = drip::drip_route(faucet, Arc::new(turnstile));
     let log = warp::log::custom(log_failed_request);
 
     let router = health_route
         .or(register_route)
+        .or(drip_route)
+        .recover(shared::handle_rejection)
         .with(
             warp::cors()
                 .allow_any_origin()
                 .allow_headers(vec!["Content-Type"])
                 .allow_methods(vec!["GET", "POST"]),
         )
-        .recover(shared::handle_rejection)
         .with(log);
 
     let listen_addr = format!("{}:{}", cli.listen_host, cli.listen_port);

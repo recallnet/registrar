@@ -14,10 +14,10 @@ abigen!(
 pub type DefaultSignerMiddleware = SignerMiddleware<Provider<Http>, Wallet<SigningKey>>;
 pub type Faucet = FaucetContract<DefaultSignerMiddleware>;
 
-/// Register request.
+/// Drip request.
 #[derive(Deserialize)]
-pub struct RegisterRequest {
-    /// The address to register.
+pub struct DripRequest {
+    /// The address to send the drip to.
     pub address: String,
     /// The Cloudflare Turnstile response to validate.
     pub ts_response: String,
@@ -26,9 +26,25 @@ pub struct RegisterRequest {
     pub wait: Option<bool>,
 }
 
+impl std::fmt::Display for DripRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "address: {}, ts_response: {}, wait: {}", self.address, self.ts_response, self.wait.unwrap_or(true))
+    }
+}
+
+/// Register request.
+#[derive(Deserialize)]
+pub struct RegisterRequest {
+    /// The address to register.
+    pub address: String,
+    /// Whether to wait for the transaction to complete.
+    /// Default is true.
+    pub wait: Option<bool>,
+}
+
 impl std::fmt::Display for RegisterRequest {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "address: {}", self.address)
+        write!(f, "address: {}, wait: {}", self.address, self.wait.unwrap_or(true))
     }
 }
 
@@ -96,6 +112,11 @@ pub async fn handle_rejection(err: Rejection) -> Result<impl Reply, Infallible> 
         message,
     });
     Ok(warp::reply::with_status(reply, code))
+}
+
+/// Filter to pass the client to the request handler.
+pub fn with_client(client: Arc<DefaultSignerMiddleware>) -> impl Filter<Extract = (Arc<DefaultSignerMiddleware>,), Error = Infallible> + Clone {
+    warp::any().map(move || client.clone())
 }
 
 /// Filter to pass the faucet to the request handler.

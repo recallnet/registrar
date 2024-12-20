@@ -1,58 +1,43 @@
-use crate::server::shared::{DefaultSignerMiddleware, Faucet, FaucetEmpty, TooManyRequests};
+use crate::server::shared::DefaultSignerMiddleware;
 use crate::server::{
-    shared::{with_faucet, with_turnstile, BadRequest, RegisterRequest},
+    shared::{with_client, BadRequest, RegisterRequest},
     util::log_request_body,
 };
 use anyhow::anyhow;
-use cf_turnstile::{SiteVerifyRequest, TurnstileClient};
-use ethers::prelude::{Address, ContractError, TxHash};
-use ethers::utils::keccak256;
-use once_cell::sync::Lazy;
+use ethers::{
+    core::types::TransactionRequest,
+    prelude::{Address, TxHash},
+    providers::Middleware,
+};
 use serde_json::json;
-use std::net::SocketAddr;
 use std::sync::Arc;
 use warp::{Filter, Rejection, Reply};
 
-static TRY_LATER_SELECTOR: Lazy<Vec<u8>> = Lazy::new(|| keccak256(b"TryLater()")[0..4].into());
-static FAUCET_EMPTY_SELECTOR: Lazy<Vec<u8>> =
-    Lazy::new(|| keccak256(b"FaucetEmpty()")[0..4].into());
-
-/// Enum to handle drip results.
-enum DripResult {
+/// Enum to handle register results.
+enum RegisterResult {
     Pending(TxHash),
     Success(TxHash),
     Failure(String),
-    RateLimited,
-    FaucetEmpty,
 }
 
 /// Route filter for `/register` endpoint.
 pub fn register_route(
-    faucet: Faucet,
-    turnstile: Arc<TurnstileClient>,
+    client: Arc<DefaultSignerMiddleware>,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     warp::path("register")
         .and(warp::post())
         .and(warp::header::exact("content-type", "application/json"))
         .and(warp::body::json())
-        .and(warp::addr::remote())
-        .and(with_faucet(faucet))
-        .and(with_turnstile(turnstile))
+        .and(with_client(client))
         .and_then(handle_register)
 }
 
 /// Handles the `/register` request.
 pub async fn handle_register(
     req: RegisterRequest,
-    addr: Option<SocketAddr>,
-    faucet: Faucet,
-    turnstile: Arc<TurnstileClient>,
+    client: Arc<DefaultSignerMiddleware>,
 ) -> anyhow::Result<impl Reply, Rejection> {
     log_request_body("register", &format!("{}", req));
-
-    let addr = addr.ok_or(Rejection::from(BadRequest {
-        message: "could not resolve ip address".to_string(),
-    }))?;
 
     let to_address = req.address.parse::<Address>().map_err(|e| {
         Rejection::from(BadRequest {
@@ -60,28 +45,9 @@ pub async fn handle_register(
         })
     })?;
 
-    let validated = turnstile
-        .siteverify(SiteVerifyRequest {
-            response: req.ts_response,
-            ..Default::default()
-        })
-        .await
-        .map_err(|e| {
-            Rejection::from(BadRequest {
-                message: format!("turnstile error: {}", e),
-            })
-        })?;
-
-    if !validated.success {
-        return Err(Rejection::from(BadRequest {
-            message: "turnstile validation failed".to_string(),
-        }));
-    }
-
-    let res = drip(
-        faucet,
+    let res = register(
+        client,
         to_address,
-        vec![to_address.to_string(), addr.ip().to_string()],
         req.wait,
     )
     .await
@@ -91,54 +57,34 @@ pub async fn handle_register(
         })
     })?;
     match res {
-        DripResult::Success(tx) | DripResult::Pending(tx) => {
+        RegisterResult::Success(tx) | RegisterResult::Pending(tx) => {
             Ok(warp::reply::json(&json!({"tx_hash": tx})))
         }
-        DripResult::Failure(message) => Err(warp::reject::custom(BadRequest { message })),
-        DripResult::RateLimited => Err(warp::reject::custom(TooManyRequests {})),
-        DripResult::FaucetEmpty => Err(warp::reject::custom(FaucetEmpty {})),
+        RegisterResult::Failure(message) => Err(warp::reject::custom(BadRequest { message })),
     }
 }
 
-/// Drips a small amount of HOKU to an address on the subnet using the faucet.
+/// Registers an address on the subnet by sending a transaction.
 /// This will trigger the FVM to create an account for the address.
-async fn drip(
-    faucet: Faucet,
+async fn register(
+    client: Arc<DefaultSignerMiddleware>,
     to_address: Address,
-    keys: Vec<String>,
     wait: Option<bool>,
-) -> anyhow::Result<DripResult> {
-    let tx = faucet.drip(to_address, keys);
-    let tx_pending = tx.send().await;
+) -> anyhow::Result<RegisterResult> {
+    let tx = TransactionRequest::new()
+        .to(to_address);
+    let tx_pending = client.send_transaction(tx, None).await;
     match tx_pending {
         Ok(tx) => {
             let hash = tx.tx_hash();
             let wait = wait.unwrap_or(true);
             if wait {
-                tx.await?.ok_or(anyhow!("drip did not return a receipt"))?;
-                Ok(DripResult::Success(hash))
+                tx.await?.ok_or(anyhow!("register did not return a receipt"))?;
+                Ok(RegisterResult::Success(hash))
             } else {
-                Ok(DripResult::Pending(hash))
+                Ok(RegisterResult::Pending(hash))
             }
         }
-        Err(e) => Ok(result_from_error(e)),
-    }
-}
-
-fn result_from_error(err: ContractError<DefaultSignerMiddleware>) -> DripResult {
-    if let Some(data) = err.as_revert() {
-        if data.len() < 4 {
-            return DripResult::Failure(err.to_string());
-        }
-        let selector = &data[..4];
-        if selector == *TRY_LATER_SELECTOR {
-            DripResult::RateLimited
-        } else if selector == *FAUCET_EMPTY_SELECTOR {
-            DripResult::FaucetEmpty
-        } else {
-            DripResult::Failure(err.to_string())
-        }
-    } else {
-        DripResult::Failure(err.to_string())
+        Err(e) => Ok(RegisterResult::Failure(e.to_string())),
     }
 }
