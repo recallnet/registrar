@@ -45,13 +45,7 @@ pub async fn handle_register(
         })
     })?;
 
-    let res = register(
-        client,
-        to_address,
-        req.wait,
-    )
-    .await
-    .map_err(|e| {
+    let res = register(client, to_address, req.wait).await.map_err(|e| {
         Rejection::from(BadRequest {
             message: format!("register error: {}", e),
         })
@@ -71,15 +65,15 @@ async fn register(
     to_address: Address,
     wait: Option<bool>,
 ) -> anyhow::Result<RegisterResult> {
-    let tx = TransactionRequest::new()
-        .to(to_address);
+    let tx = TransactionRequest::new().to(to_address);
     let tx_pending = client.send_transaction(tx, None).await;
     match tx_pending {
         Ok(tx) => {
             let hash = tx.tx_hash();
             let wait = wait.unwrap_or(true);
             if wait {
-                tx.await?.ok_or(anyhow!("register did not return a receipt"))?;
+                tx.await?
+                    .ok_or(anyhow!("register did not return a receipt"))?;
                 Ok(RegisterResult::Success(hash))
             } else {
                 Ok(RegisterResult::Pending(hash))

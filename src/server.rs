@@ -10,8 +10,8 @@ use crate::server::shared::{DefaultSignerMiddleware, Faucet, FaucetContract};
 use crate::Cli;
 
 mod drip;
-mod shared;
 mod register;
+mod shared;
 mod util;
 
 /// Server entrypoint for the service.

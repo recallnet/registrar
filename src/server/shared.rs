@@ -28,7 +28,13 @@ pub struct DripRequest {
 
 impl std::fmt::Display for DripRequest {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "address: {}, ts_response: {}, wait: {}", self.address, self.ts_response, self.wait.unwrap_or(true))
+        write!(
+            f,
+            "address: {}, ts_response: {}, wait: {}",
+            self.address,
+            self.ts_response,
+            self.wait.unwrap_or(true)
+        )
     }
 }
 
@@ -44,7 +50,12 @@ pub struct RegisterRequest {
 
 impl std::fmt::Display for RegisterRequest {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "address: {}, wait: {}", self.address, self.wait.unwrap_or(true))
+        write!(
+            f,
+            "address: {}, wait: {}",
+            self.address,
+            self.wait.unwrap_or(true)
+        )
     }
 }
 
@@ -115,7 +126,9 @@ pub async fn handle_rejection(err: Rejection) -> Result<impl Reply, Infallible> 
 }
 
 /// Filter to pass the client to the request handler.
-pub fn with_client(client: Arc<DefaultSignerMiddleware>) -> impl Filter<Extract = (Arc<DefaultSignerMiddleware>,), Error = Infallible> + Clone {
+pub fn with_client(
+    client: Arc<DefaultSignerMiddleware>,
+) -> impl Filter<Extract = (Arc<DefaultSignerMiddleware>,), Error = Infallible> + Clone {
     warp::any().map(move || client.clone())
 }
 
