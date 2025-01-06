@@ -11,12 +11,12 @@ mod server;
 struct Cli {
     #[command(subcommand)]
     command: Commands,
-    /// Wallet private key (ECDSA, secp256k1) used to register new accounts.
+    /// Wallet private key (ECDSA, secp256k1) used to register new accounts and send drips.
     #[arg(short, long, env)]
     private_key: String,
     /// Cloudflare secret key.
     #[arg(short, long, env)]
-    ts_secret: String,
+    ts_secret_key: String,
     /// HOKU faucet contract address.
     #[arg(long, env)]
     faucet_address: Address,
