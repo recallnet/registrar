@@ -32,12 +32,13 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build and push
-        uses: docker/build-push-action@v4
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/registrar:${{ steps.vars.outputs.sha_short }},${{ secrets.DOCKERHUB_USERNAME }}/registrar:latest
+          platforms: linux/amd64,linux/arm64
 
       - name: Build using Makefile
         run: make build
