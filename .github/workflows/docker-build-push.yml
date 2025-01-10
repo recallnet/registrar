@@ -3,6 +3,7 @@ name: Docker Build and Push
 on:
   push:
     branches: [ "main" ]
+  pull_request:
   workflow_dispatch:
     inputs:
       debug_enabled:
@@ -13,7 +14,7 @@ on:
 
 jobs:
   build-and-push:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     steps:
       - uses: actions/checkout@v3
@@ -36,7 +37,7 @@ jobs:
         with:
           context: .
           file: ./Dockerfile
-          push: true
+          push: ${{ github.ref == 'refs/heads/main' }}
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/registrar:${{ steps.vars.outputs.sha_short }},${{ secrets.DOCKERHUB_USERNAME }}/registrar:latest
           platforms: linux/amd64,linux/arm64
 
