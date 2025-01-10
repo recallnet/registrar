@@ -56,7 +56,7 @@ RUN \
     mv ./target/${ARCH}-unknown-linux-gnu/release/registrar ./
 
 
-FROM --platform=$BUILDPLATFORM ubuntu:jammy
+FROM ubuntu:jammy
 COPY --from=builder /etc/passwd /etc/passwd
 COPY --from=builder /etc/group /etc/group
 COPY --from=builder /usr/src/registrar/registrar /bin/app
