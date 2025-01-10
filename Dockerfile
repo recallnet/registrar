@@ -1,9 +1,37 @@
-FROM rust:latest AS builder
-RUN apt-get update && apt-get install -y musl-tools curl perl make gcc
-RUN rustup target add x86_64-unknown-linux-musl
+FROM --platform=$BUILDPLATFORM ubuntu:jammy AS builder
+USER root
+
+RUN apt-get update && \
+    apt-get install -y build-essential clang cmake protobuf-compiler curl \
+    openssl libssl-dev pkg-config git-core ca-certificates && \
+    update-ca-certificates
+
+RUN curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+ENV CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
+    CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
+    CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++
+
+ARG RUST_VERSION=1.82.0
+RUN \
+    rustup install ${RUST_VERSION} && \
+    rustup default ${RUST_VERSION} && \
+    rustup target add aarch64-unknown-linux-gnu
+
+# Defined here so anything above it can be cached as a common dependency.
+ARG TARGETARCH
+
+RUN if [ "${TARGETARCH}" = "arm64" ]; then \
+    apt-get install -y g++-aarch64-linux-gnu libc6-dev-arm64-cross; \
+    rustup target add aarch64-unknown-linux-gnu; \
+    rustup toolchain install ${RUST_VERSION}-aarch64-unknown-linux-gnu; \
+    fi
+
 WORKDIR /usr/src/registrar
-COPY ./ .
-RUN rustup component add rustfmt clippy
+COPY ./Cargo.* ./
+COPY ./src/ ./src/
+# RUN rustup component add rustfmt clippy
 ENV USER=registrar
 ENV UID=10001
 RUN adduser \
@@ -15,33 +43,24 @@ RUN adduser \
     --uid "${UID}" \
     "${USER}"
 
-# Build OpenSSL statically
-RUN curl -L https://github.com/openssl/openssl/releases/download/openssl-3.3.1/openssl-3.3.1.tar.gz -o openssl-3.3.1.tar.gz && \
-    tar -xzf openssl-3.3.1.tar.gz && \
-    cd openssl-3.3.1 && \
-    ./Configure no-shared no-async linux-x86_64 -fPIC --prefix=/usr/local/ssl && \
-    make -j$(nproc) && \
-    make install_sw install_ssldirs && \
-    cd .. && \
-    rm -rf openssl-3.3.1 openssl-3.3.1.tar.gz
+RUN \
+    --mount=type=cache,target=/root/.cargo/registry,sharing=locked \
+    --mount=type=cache,target=/root/.cargo/git,sharing=locked \
+    --mount=type=cache,target=/app/target,sharing=locked \
+    set -eux; \
+    case "${TARGETARCH}" in \
+    amd64) ARCH='x86_64'  ;; \
+    arm64) ARCH='aarch64' ;; \
+    esac; \
+    cargo build --release --locked --target ${ARCH}-unknown-linux-gnu; \
+    mv ./target/${ARCH}-unknown-linux-gnu/release/registrar ./
 
-# Set environment variables for static linking
-ENV OPENSSL_DIR=/usr/local/ssl
-ENV OPENSSL_STATIC=1
-ENV PKG_CONFIG_PATH=/usr/local/ssl/lib64/pkgconfig
-ENV LD_LIBRARY_PATH=/usr/local/ssl/lib64
 
-# Build the Rust application
-RUN RUSTFLAGS='-C target-feature=+crt-static' \
-    CC=musl-gcc \
-    cargo build --release --target x86_64-unknown-linux-musl
-
-FROM scratch
+FROM --platform=$BUILDPLATFORM ubuntu:jammy
 COPY --from=builder /etc/passwd /etc/passwd
 COPY --from=builder /etc/group /etc/group
-COPY --from=builder /usr/src/registrar/target/x86_64-unknown-linux-musl/release/registrar /bin/app
+COPY --from=builder /usr/src/registrar/registrar /bin/app
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-COPY --from=builder /usr/local/ssl/lib64 /usr/local/ssl/lib64
 USER registrar:registrar
 EXPOSE 8080
 CMD ["/bin/app", "start"]
