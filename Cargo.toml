@@ -28,3 +28,9 @@ serde_json = { version = "1.0.115", features = ["preserve_order"] }
 stderrlog = "0.6.0"
 tokio = { version = "1.37.0", features = ["full"] }
 warp = "0.3.7"
+
+# Vendored for cross-compilation, see https://github.com/cross-rs/cross/wiki/Recipes#openssl
+# Make sure every top level build target actually imports this dependency, and don't end up
+# depending on the same _without_ the "vendored" feature, because then the Docker build for
+# for ARM64 on AMD64 will fail, it won't find the OpenSSL installation.
+openssl = { version = "0.10", features = ["vendored"] }
