@@ -7,6 +7,7 @@ use anyhow::anyhow;
 use cf_turnstile::{SiteVerifyRequest, TurnstileClient};
 use ethers::prelude::{Address, ContractError, TxHash};
 use ethers::utils::keccak256;
+use log::info;
 use once_cell::sync::Lazy;
 use serde_json::json;
 use std::net::SocketAddr;
@@ -78,18 +79,21 @@ pub async fn handle_drip(
         }));
     }
 
-    let res = drip(
-        faucet,
-        to_address,
-        vec![to_address.to_string(), addr.ip().to_string()],
-        req.wait,
-    )
-    .await
-    .map_err(|e| {
-        Rejection::from(BadRequest {
-            message: format!("drip error: {}", e),
-        })
-    })?;
+    let addr_string = to_address.to_string();
+    let ip_string = addr.ip().to_string();
+
+    info!(
+        "Calling drip with keys: address: {}, ip: {}",
+        addr_string, ip_string
+    );
+
+    let res = drip(faucet, to_address, vec![addr_string, ip_string], req.wait)
+        .await
+        .map_err(|e| {
+            Rejection::from(BadRequest {
+                message: format!("drip error: {}", e),
+            })
+        })?;
     match res {
         DripResult::Success(tx) | DripResult::Pending(tx) => {
             Ok(warp::reply::json(&json!({"tx_hash": tx})))
