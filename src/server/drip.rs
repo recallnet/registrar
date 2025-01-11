@@ -79,15 +79,14 @@ pub async fn handle_drip(
         }));
     }
 
-    let addr_string = to_address.to_string();
     let ip_string = addr.ip().to_string();
 
     info!(
         "Calling drip with keys: address: {}, ip: {}",
-        addr_string, ip_string
+        req.address, ip_string
     );
 
-    let res = drip(faucet, to_address, vec![addr_string, ip_string], req.wait)
+    let res = drip(faucet, to_address, vec![req.address, ip_string], req.wait)
         .await
         .map_err(|e| {
             Rejection::from(BadRequest {
