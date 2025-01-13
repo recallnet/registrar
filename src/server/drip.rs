@@ -30,7 +30,7 @@ enum DripResult {
 
 /// Route filter for `/drip` endpoint.
 pub fn drip_route(
-    proxy_ip: IpAddr,
+    trusted_proxy_ip: Option<IpAddr>,
     faucet: Faucet,
     turnstile: Arc<TurnstileClient>,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
@@ -38,7 +38,7 @@ pub fn drip_route(
         .and(warp::post())
         .and(warp::header::exact("content-type", "application/json"))
         .and(warp::body::json())
-        .and(real_ip(vec![proxy_ip]))
+        .and(real_ip(trusted_proxy_ip.into_iter().collect()))
         .and(with_faucet(faucet))
         .and(with_turnstile(turnstile))
         .and_then(handle_drip)
