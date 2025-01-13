@@ -10,9 +10,10 @@ use ethers::utils::keccak256;
 use log::info;
 use once_cell::sync::Lazy;
 use serde_json::json;
-use std::net::SocketAddr;
+use std::net::IpAddr;
 use std::sync::Arc;
 use warp::{Filter, Rejection, Reply};
+use warp_real_ip::real_ip;
 
 static TRY_LATER_SELECTOR: Lazy<Vec<u8>> = Lazy::new(|| keccak256(b"TryLater()")[0..4].into());
 static FAUCET_EMPTY_SELECTOR: Lazy<Vec<u8>> =
@@ -29,6 +30,7 @@ enum DripResult {
 
 /// Route filter for `/drip` endpoint.
 pub fn drip_route(
+    proxy_ip: IpAddr,
     faucet: Faucet,
     turnstile: Arc<TurnstileClient>,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
@@ -36,7 +38,7 @@ pub fn drip_route(
         .and(warp::post())
         .and(warp::header::exact("content-type", "application/json"))
         .and(warp::body::json())
-        .and(warp::addr::remote())
+        .and(real_ip(vec![proxy_ip]))
         .and(with_faucet(faucet))
         .and(with_turnstile(turnstile))
         .and_then(handle_drip)
@@ -45,7 +47,7 @@ pub fn drip_route(
 /// Handles the `/drip` request.
 pub async fn handle_drip(
     req: DripRequest,
-    addr: Option<SocketAddr>,
+    addr: Option<IpAddr>,
     faucet: Faucet,
     turnstile: Arc<TurnstileClient>,
 ) -> anyhow::Result<impl Reply, Rejection> {
@@ -79,7 +81,7 @@ pub async fn handle_drip(
         }));
     }
 
-    let ip_string = addr.ip().to_string();
+    let ip_string = addr.to_string();
 
     info!(
         "Calling drip with keys: address: {}, ip: {}",

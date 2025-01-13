@@ -1,3 +1,5 @@
+use std::net::IpAddr;
+
 use clap::{Parser, Subcommand};
 use ethers::prelude::Address;
 use stderrlog::Timestamp;
@@ -17,6 +19,9 @@ struct Cli {
     /// Cloudflare secret key.
     #[arg(short, long, env)]
     ts_secret_key: String,
+    /// IP address of the proxy server this is running behind.
+    #[arg(long, env, default_value = "172.20.0.11")]
+    proxy_ip: IpAddr,
     /// HOKU faucet contract address.
     #[arg(long, env)]
     faucet_address: Address,
