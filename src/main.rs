@@ -20,7 +20,7 @@ struct Cli {
     #[arg(short, long, env)]
     ts_secret_key: String,
     /// IP address of the proxy server this is running behind.
-    #[arg(long, env, default_value = "172.20.0.11")]
+    #[arg(long, env)]
     proxy_ip: IpAddr,
     /// HOKU faucet contract address.
     #[arg(long, env)]
