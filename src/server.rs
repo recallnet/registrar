@@ -17,6 +17,7 @@ mod util;
 /// Server entrypoint for the service.
 pub async fn run(cli: Cli) -> anyhow::Result<()> {
     let private_key = hex::decode(cli.private_key)?;
+    let trusted_proxy_ips = cli.trusted_proxy_ips;
     let faucet_address = cli.faucet_address;
     let evm_rpc_url = cli.evm_rpc_url;
 
@@ -32,7 +33,7 @@ pub async fn run(cli: Cli) -> anyhow::Result<()> {
         .and(warp::get())
         .and_then(handle_health);
     let register_route = register::register_route(client.clone());
-    let drip_route = drip::drip_route(faucet, Arc::new(turnstile));
+    let drip_route = drip::drip_route(trusted_proxy_ips, faucet, Arc::new(turnstile));
     let log = warp::log::custom(log_failed_request);
 
     let router = health_route

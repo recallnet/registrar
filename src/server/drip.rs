@@ -7,11 +7,13 @@ use anyhow::anyhow;
 use cf_turnstile::{SiteVerifyRequest, TurnstileClient};
 use ethers::prelude::{Address, ContractError, TxHash};
 use ethers::utils::keccak256;
+use log::info;
 use once_cell::sync::Lazy;
 use serde_json::json;
-use std::net::SocketAddr;
+use std::net::IpAddr;
 use std::sync::Arc;
 use warp::{Filter, Rejection, Reply};
+use warp_real_ip::real_ip;
 
 static TRY_LATER_SELECTOR: Lazy<Vec<u8>> = Lazy::new(|| keccak256(b"TryLater()")[0..4].into());
 static FAUCET_EMPTY_SELECTOR: Lazy<Vec<u8>> =
@@ -28,6 +30,7 @@ enum DripResult {
 
 /// Route filter for `/drip` endpoint.
 pub fn drip_route(
+    trusted_proxy_ips: Vec<IpAddr>,
     faucet: Faucet,
     turnstile: Arc<TurnstileClient>,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
@@ -35,7 +38,7 @@ pub fn drip_route(
         .and(warp::post())
         .and(warp::header::exact("content-type", "application/json"))
         .and(warp::body::json())
-        .and(warp::addr::remote())
+        .and(real_ip(trusted_proxy_ips))
         .and(with_faucet(faucet))
         .and(with_turnstile(turnstile))
         .and_then(handle_drip)
@@ -44,7 +47,7 @@ pub fn drip_route(
 /// Handles the `/drip` request.
 pub async fn handle_drip(
     req: DripRequest,
-    addr: Option<SocketAddr>,
+    addr: Option<IpAddr>,
     faucet: Faucet,
     turnstile: Arc<TurnstileClient>,
 ) -> anyhow::Result<impl Reply, Rejection> {
@@ -78,18 +81,20 @@ pub async fn handle_drip(
         }));
     }
 
-    let res = drip(
-        faucet,
-        to_address,
-        vec![to_address.to_string(), addr.ip().to_string()],
-        req.wait,
-    )
-    .await
-    .map_err(|e| {
-        Rejection::from(BadRequest {
-            message: format!("drip error: {}", e),
-        })
-    })?;
+    let ip_string = addr.to_string();
+
+    info!(
+        "Calling drip with keys: address: {}, ip: {}",
+        req.address, ip_string
+    );
+
+    let res = drip(faucet, to_address, vec![req.address, ip_string], req.wait)
+        .await
+        .map_err(|e| {
+            Rejection::from(BadRequest {
+                message: format!("drip error: {}", e),
+            })
+        })?;
     match res {
         DripResult::Success(tx) | DripResult::Pending(tx) => {
             Ok(warp::reply::json(&json!({"tx_hash": tx})))
