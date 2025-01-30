@@ -1537,7 +1537,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "hoku_registrar"
+name = "recall_registrar"
 version = "0.1.0"
 dependencies = [
  "anyhow",

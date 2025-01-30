@@ -105,7 +105,7 @@ pub async fn handle_drip(
     }
 }
 
-/// Drips a small amount of HOKU to an address on the subnet using the faucet.
+/// Drips a small amount of RECALL to an address on the subnet using the faucet.
 /// This will trigger the FVM to create an account for the address.
 async fn drip(
     faucet: Faucet,
