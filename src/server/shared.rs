@@ -143,3 +143,16 @@ pub fn with_turnstile(
 ) -> impl Filter<Extract = (Arc<TurnstileClient>,), Error = Infallible> + Clone {
     warp::any().map(move || turnstile.clone())
 }
+
+/// Google Sheets configuration.
+pub struct GoogleSheetsConfig {
+    pub google_sheets_api_key: String,
+    pub allowlist_spreadsheet_id: String,
+}
+
+/// Filter to pass the Google Sheets configuration to the request handler.
+pub fn with_google_sheets_config(
+    config: Arc<GoogleSheetsConfig>,
+) -> impl Filter<Extract = (Arc<GoogleSheetsConfig>,), Error = std::convert::Infallible> + Clone {
+    warp::any().map(move || config.clone())
+}

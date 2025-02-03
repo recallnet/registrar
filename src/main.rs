@@ -40,6 +40,12 @@ struct Cli {
     /// Silence logging.
     #[arg(short, long, env, default_value_t = false)]
     quiet: bool,
+    /// Google Sheets API key.
+    #[arg(long, env)]
+    google_sheets_api_key: String,
+    /// Google Sheets spreadsheet ID.
+    #[arg(long, env)]
+    allowlist_spreadsheet_id: String,
 }
 
 #[derive(Clone, Debug, Subcommand)]
