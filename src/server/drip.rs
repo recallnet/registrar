@@ -1,6 +1,9 @@
-use crate::server::shared::{DefaultSignerMiddleware, Faucet, FaucetEmpty, TooManyRequests};
 use crate::server::{
-    shared::{with_faucet, with_turnstile, BadRequest, DripRequest},
+    shared::{
+        with_faucet, with_google_sheets_config, with_turnstile, BadRequest,
+        DefaultSignerMiddleware, DripRequest, Faucet, FaucetEmpty, GoogleSheetsConfig,
+        TooManyRequests,
+    },
     util::log_request_body,
 };
 use anyhow::anyhow;
@@ -33,6 +36,7 @@ pub fn drip_route(
     trusted_proxy_ips: Vec<IpAddr>,
     faucet: Faucet,
     turnstile: Arc<TurnstileClient>,
+    config: Arc<GoogleSheetsConfig>,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     warp::path("drip")
         .and(warp::post())
@@ -41,6 +45,7 @@ pub fn drip_route(
         .and(real_ip(trusted_proxy_ips))
         .and(with_faucet(faucet))
         .and(with_turnstile(turnstile))
+        .and(with_google_sheets_config(config))
         .and_then(handle_drip)
 }
 
@@ -50,6 +55,7 @@ pub async fn handle_drip(
     addr: Option<IpAddr>,
     faucet: Faucet,
     turnstile: Arc<TurnstileClient>,
+    config: Arc<GoogleSheetsConfig>,
 ) -> anyhow::Result<impl Reply, Rejection> {
     log_request_body("drip", &format!("{}", req));
 
@@ -62,6 +68,24 @@ pub async fn handle_drip(
             message: format!("invalid ethereum address: {}", e),
         })
     })?;
+
+    let is_allowed = check_address_in_sheet(
+        &req.address,
+        &config.google_sheets_api_key,
+        &config.allowlist_spreadsheet_id,
+    )
+    .await
+    .map_err(|e| {
+        Rejection::from(BadRequest {
+            message: format!("failed to check address in allowlist: {}", e),
+        })
+    })?;
+
+    if !is_allowed {
+        return Err(Rejection::from(BadRequest {
+            message: "address not in allowlist".to_string(),
+        }));
+    }
 
     let validated = turnstile
         .siteverify(SiteVerifyRequest {
@@ -103,6 +127,35 @@ pub async fn handle_drip(
         DripResult::RateLimited => Err(warp::reject::custom(TooManyRequests {})),
         DripResult::FaucetEmpty => Err(warp::reject::custom(FaucetEmpty {})),
     }
+}
+
+/// Checks if an address exists in the Google Sheet
+async fn check_address_in_sheet(
+    address: &str,
+    api_key: &str,
+    spreadsheet_id: &str,
+) -> anyhow::Result<bool> {
+    let url = format!(
+        "https://sheets.googleapis.com/v4/spreadsheets/{}/values/Sheet1!A:A?key={}",
+        spreadsheet_id, api_key
+    );
+
+    let response = reqwest::get(&url).await?;
+    let data: serde_json::Value = response.json().await?;
+
+    let empty_vec = Vec::new();
+    let values = data
+        .get("values")
+        .and_then(|v| v.as_array())
+        .unwrap_or(&empty_vec);
+
+    let address = address.to_lowercase();
+    Ok(values.iter().any(|row| {
+        row.get(0)
+            .and_then(|cell| cell.as_str())
+            .map(|cell| cell.to_lowercase() == address)
+            .unwrap_or(false)
+    }))
 }
 
 /// Drips a small amount of HOKU to an address on the subnet using the faucet.

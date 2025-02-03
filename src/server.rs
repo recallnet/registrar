@@ -3,6 +3,7 @@ use std::sync::Arc;
 use cf_turnstile::TurnstileClient;
 use ethers::prelude::{Http, LocalWallet, Middleware, Provider, Signer, SignerMiddleware};
 use log::info;
+use shared::GoogleSheetsConfig;
 use util::log_failed_request;
 use warp::{Filter, Rejection, Reply};
 
@@ -32,12 +33,21 @@ pub async fn run(cli: Cli) -> anyhow::Result<()> {
     let client = Arc::new(client);
     let faucet: Faucet = FaucetContract::new(faucet_address, client.clone());
     let turnstile = TurnstileClient::new(cli.ts_secret_key.into());
+    let google_sheets_config = GoogleSheetsConfig {
+        google_sheets_api_key: cli.google_sheets_api_key,
+        allowlist_spreadsheet_id: cli.allowlist_spreadsheet_id,
+    };
 
     let health_route = warp::path!("health")
         .and(warp::get())
         .and_then(handle_health);
     let register_route = register::register_route(client.clone());
-    let drip_route = drip::drip_route(trusted_proxy_ips, faucet, Arc::new(turnstile));
+    let drip_route = drip::drip_route(
+        trusted_proxy_ips,
+        faucet,
+        Arc::new(turnstile),
+        Arc::new(google_sheets_config),
+    );
     let log = warp::log::custom(log_failed_request);
 
     let router = health_route
