@@ -1,15 +1,15 @@
-# Hoku Registrar
+# Recall Registrar
 
-[![License](https://img.shields.io/github/license/hokunet/registrar.svg)](./LICENSE)
+[![License](https://img.shields.io/github/license/recallnet/registrar.svg)](./LICENSE)
 [![standard-readme compliant](https://img.shields.io/badge/standard--readme-OK-green.svg)](https://github.com/RichardLitt/standard-readme)
 
-> Account registration service for Hoku
+> Account registration service for Recall
 
 ## Background
 
-This web-based service facilitates the creation of new Hoku accounts.
+This web-based service facilitates the creation of new Recall accounts.
 It triggers the FEVM to create accounts by calling
-the [Hoku Faucet](https://github.com/hokunet/contracts/blob/main/src/Faucet.sol)'s `drip` method from a service wallet.
+the [Recall Faucet](https://github.com/recallnet/contracts/blob/main/src/Faucet.sol)'s `drip` method from a service wallet.
 
 ## Usage
 
@@ -69,10 +69,10 @@ make build
 
 ### Run the service
 
-- `PRIVATE_KEY`: A private key from any wallet that exists on the Hoku chain and has non-zero `HOKU` balance.
+- `PRIVATE_KEY`: A private key from any wallet that exists on the Recall chain and has non-zero `RECALL` balance.
 - `FAUCET_ADDRESS`: The contract address of
-  a [Hoku Faucet](https://github.com/hokunet/contracts/blob/main/src/Faucet.sol).
-- `EVM_RPC_URL`: An Ethereum RPC URL of a Hoku validator. The default is `http://127.0.0.1:8545`.
+  a [Recall Faucet](https://github.com/recallnet/contracts/blob/main/src/Faucet.sol).
+- `EVM_RPC_URL`: An Ethereum RPC URL of a Recall validator. The default is `http://127.0.0.1:8545`.
 - `LISTEN_HOST`: The host that the service will bind to. The defualt is `127.0.0.1`.
 - `LISTEN_PORT`: The port that the service will bind to. The default is `8080`.
 
@@ -82,7 +82,7 @@ PRIVATE_KEY=<> FAUCET_ADDRESS=<> make run
 
 For local testing, use `make run-local`.
 This command configures Docker to use host networking,
-which is helpful for testing against a locally running Anvil, Hardhat, or Hoku node.
+which is helpful for testing against a locally running Anvil, Hardhat, or Recall node.
 
 ### Stop the service
 
@@ -99,4 +99,4 @@ the [standard-readme](https://github.com/RichardLitt/standard-readme) specificat
 
 ## License
 
-MIT OR Apache-2.0, © 2024 Hoku Contributors
+MIT OR Apache-2.0, © 2025 Recall Contributors
