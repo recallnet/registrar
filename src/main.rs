@@ -41,8 +41,8 @@ struct Cli {
     #[arg(short, long, env, default_value_t = false)]
     quiet: bool,
 
-    /// Prometheus metrics socket address
-    #[arg(long, env, default_value = "127.0.0.1:9090")]
+    /// Prometheus metrics socket address, e.g. 127.0.0.1:9090
+    #[arg(long, env)]
     metrics_listen_address: Option<SocketAddr>,
 }
 
