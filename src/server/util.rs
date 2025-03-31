@@ -1,4 +1,6 @@
-use log::{error, info};
+use lazy_static::lazy_static;
+use log::debug;
+use prometheus::{register_histogram_vec, HistogramVec};
 use serde_json::json;
 use warp::log::Info;
 
@@ -18,7 +20,7 @@ pub fn log_failed_request(request: Info) {
         "client_addr": addr,
         "duration_ms": duration
     });
-    error!("{}", log_data)
+    debug!("{}", log_data)
 }
 
 /// Helper function to log the incoming request body for a route when
@@ -28,5 +30,25 @@ pub fn log_request_body(route: &str, body: &str) {
         "route": route,
         "body": body
     });
-    info!("{}", log_data);
+    debug!("{}", log_data);
+}
+
+lazy_static! {
+    static ref HISTOGRAM_REQUESTS: HistogramVec = register_histogram_vec!(
+        "http_request_duration_seconds",
+        "Duration of HTTP requests in seconds.",
+        &["methon", "path", "status"]
+    )
+    .unwrap();
+}
+
+pub fn request_metrics(request: Info) {
+    let normalized_path: String = request.path().chars().skip(1).take(8).collect();
+    HISTOGRAM_REQUESTS
+        .with_label_values(&[
+            request.method().as_str(),
+            &normalized_path,
+            request.status().as_str(),
+        ])
+        .observe(request.elapsed().as_secs_f64());
 }

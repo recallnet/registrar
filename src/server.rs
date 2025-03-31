@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use anyhow::Context;
 use cf_turnstile::TurnstileClient;
 use ethers::prelude::{Http, LocalWallet, Middleware, Provider, Signer, SignerMiddleware};
 use log::info;
@@ -39,6 +40,13 @@ pub async fn run(cli: Cli) -> anyhow::Result<()> {
     let register_route = register::register_route(client.clone());
     let drip_route = drip::drip_route(trusted_proxy_ips, faucet, Arc::new(turnstile));
     let log = warp::log::custom(log_failed_request);
+    let request_metrics = warp::log::custom(util::request_metrics);
+
+    if let Some(metrics_addr) = cli.metrics_listen_address {
+        let builder = prometheus_exporter::Builder::new(metrics_addr);
+        let _ = builder.start().context("failed to start metrics server")?;
+        info!("running metrics endpoint on {metrics_addr}");
+    }
 
     let router = health_route
         .or(register_route)
@@ -50,6 +58,7 @@ pub async fn run(cli: Cli) -> anyhow::Result<()> {
                 .allow_headers(vec!["Content-Type"])
                 .allow_methods(vec!["GET", "POST"]),
         )
+        .with(request_metrics)
         .with(log);
 
     let listen_addr = format!("{}:{}", cli.listen_host, cli.listen_port);

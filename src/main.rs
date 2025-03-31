@@ -1,4 +1,4 @@
-use std::net::IpAddr;
+use std::net::{IpAddr, SocketAddr};
 
 use clap::{Parser, Subcommand};
 use ethers::prelude::Address;
@@ -35,11 +35,15 @@ struct Cli {
     #[arg(long, env, default_value_t = 8080)]
     listen_port: u16,
     /// Logging verbosity (repeat for more verbose logging).
-    #[arg(short, long, env, action = clap::ArgAction::Count, default_value = "3")]
+    #[arg(short, long, env, action = clap::ArgAction::Count, default_value = "2")]
     verbosity: u8,
     /// Silence logging.
     #[arg(short, long, env, default_value_t = false)]
     quiet: bool,
+
+    /// Prometheus metrics socket address
+    #[arg(long, env, default_value = "127.0.0.1:9090")]
+    metrics_listen_address: Option<SocketAddr>,
 }
 
 #[derive(Clone, Debug, Subcommand)]
