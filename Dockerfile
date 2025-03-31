@@ -25,7 +25,7 @@ ARG TARGETARCH
 RUN if [ "${TARGETARCH}" = "arm64" ]; then \
     apt-get install -y g++-aarch64-linux-gnu libc6-dev-arm64-cross; \
     rustup target add aarch64-unknown-linux-gnu; \
-    rustup toolchain install ${RUST_VERSION}-aarch64-unknown-linux-gnu; \
+    rustup toolchain install ${RUST_VERSION}; \
     fi
 
 WORKDIR /usr/src/registrar
