@@ -43,7 +43,7 @@ lazy_static! {
 }
 
 pub fn request_metrics(request: Info) {
-    let normalized_path: String = request.path().chars().skip(1).take(8).collect();
+    let normalized_path: String = request.path().chars().take(9).collect();
     HISTOGRAM_REQUESTS
         .with_label_values(&[
             request.method().as_str(),
