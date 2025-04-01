@@ -2,7 +2,9 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use cf_turnstile::TurnstileClient;
-use ethers::prelude::{Http, LocalWallet, Middleware, Provider, Signer, SignerMiddleware};
+use ethers::prelude::{
+    Http, LocalWallet, Middleware, NonceManagerMiddleware, Provider, Signer, SignerMiddleware,
+};
 use log::info;
 use util::log_failed_request;
 use warp::{Filter, Rejection, Reply};
@@ -29,7 +31,8 @@ pub async fn run(cli: Cli) -> anyhow::Result<()> {
     let provider = Provider::<Http>::try_from(evm_rpc_url)?;
     let chain_id = provider.get_chainid().await?.as_u64();
     let wallet = LocalWallet::from_bytes(&private_key)?.with_chain_id(chain_id);
-    let client: DefaultSignerMiddleware = SignerMiddleware::new(provider, wallet);
+    let provider_with_nonce = NonceManagerMiddleware::new(provider, wallet.address());
+    let client: DefaultSignerMiddleware = SignerMiddleware::new(provider_with_nonce, wallet);
     let client = Arc::new(client);
     let faucet: Faucet = FaucetContract::new(faucet_address, client.clone());
     let turnstile = TurnstileClient::new(cli.ts_secret_key.into());

@@ -2,7 +2,10 @@ use std::convert::Infallible;
 use std::sync::Arc;
 
 use cf_turnstile::TurnstileClient;
-use ethers::prelude::{abigen, k256::ecdsa::SigningKey, Http, Provider, SignerMiddleware, Wallet};
+use ethers::prelude::{
+    abigen, k256::ecdsa::SigningKey, Http, NonceManagerMiddleware, Provider, SignerMiddleware,
+    Wallet,
+};
 use serde::{Deserialize, Serialize};
 use warp::{http::StatusCode, Filter, Rejection, Reply};
 
@@ -11,7 +14,8 @@ abigen!(
     r#"[{"name": "drip","type": "function","inputs": [{"name": "recipient","type": "address","internalType": "address payable"}, {"internalType":"string[]","name":"keys","type":"string[]"}],"outputs": [],"stateMutability": "nonpayable"}]"#
 );
 
-pub type DefaultSignerMiddleware = SignerMiddleware<Provider<Http>, Wallet<SigningKey>>;
+pub type DefaultSignerMiddleware =
+    SignerMiddleware<NonceManagerMiddleware<Provider<Http>>, Wallet<SigningKey>>;
 pub type Faucet = FaucetContract<DefaultSignerMiddleware>;
 
 /// Drip request.
