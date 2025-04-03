@@ -31,9 +31,11 @@ pub async fn run(cli: Cli) -> anyhow::Result<()> {
     let provider = Provider::<Http>::try_from(evm_rpc_url)?;
     let chain_id = provider.get_chainid().await?.as_u64();
     let wallet = LocalWallet::from_bytes(&private_key)?.with_chain_id(chain_id);
-    let provider_with_nonce = NonceManagerMiddleware::new(provider, wallet.address());
-    let client: DefaultSignerMiddleware = SignerMiddleware::new(provider_with_nonce, wallet);
+
+    let nonce_manager = Arc::new(NonceManagerMiddleware::new(provider, wallet.address()));
+    let client: DefaultSignerMiddleware = SignerMiddleware::new(nonce_manager, wallet);
     let client = Arc::new(client);
+
     let faucet: Faucet = FaucetContract::new(faucet_address, client.clone());
     let turnstile = TurnstileClient::new(cli.ts_secret_key.into());
 

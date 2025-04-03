@@ -15,7 +15,7 @@ abigen!(
 );
 
 pub type DefaultSignerMiddleware =
-    SignerMiddleware<NonceManagerMiddleware<Provider<Http>>, Wallet<SigningKey>>;
+    SignerMiddleware<Arc<NonceManagerMiddleware<Provider<Http>>>, Wallet<SigningKey>>;
 pub type Faucet = FaucetContract<DefaultSignerMiddleware>;
 
 /// Drip request.
