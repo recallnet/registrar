@@ -161,6 +161,9 @@ pub enum SerializingMiddlewareError<M: Middleware> {
     /// Thrown when the internal middleware errors
     #[error("{0}")]
     MiddlewareError(M::Error),
+
+    #[error("Not Implemented")]
+    NotImplemented,
 }
 
 impl<M: Middleware> MiddlewareError for SerializingMiddlewareError<M> {
@@ -173,6 +176,7 @@ impl<M: Middleware> MiddlewareError for SerializingMiddlewareError<M> {
     fn as_inner(&self) -> Option<&Self::Inner> {
         match self {
             SerializingMiddlewareError::MiddlewareError(e) => Some(e),
+            _ => None,
         }
     }
 }
@@ -193,10 +197,11 @@ where
 
     async fn fill_transaction(
         &self,
-        tx: &mut TypedTransaction,
-        block: Option<BlockId>,
+        _: &mut TypedTransaction,
+        _: Option<BlockId>,
     ) -> Result<(), Self::Error> {
-        Ok(self.inner().fill_transaction(tx, block).await.map_err(MiddlewareError::from_err)?)
+        Err(Self::Error::NotImplemented)
+        //Ok(self.inner().fill_transaction(tx, block).await.map_err(MiddlewareError::from_err)?)
     }
 
     /// Signs and broadcasts the transaction. The optional parameter `block` can be passed so that
