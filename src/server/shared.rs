@@ -1,5 +1,5 @@
 use std::convert::Infallible;
-use std::sync::{Arc, Condvar, Mutex, PoisonError};
+use std::sync::{Arc, Condvar, Mutex};
 use async_trait::async_trait;
 use cf_turnstile::TurnstileClient;
 use ethers::middleware::{Middleware, MiddlewareError};
@@ -159,9 +159,9 @@ pub struct SerializingMiddleware<M> {
 #[derive(Error, Debug)]
 /// Thrown when an error happens in the SerializingMiddleware
 pub enum SerializingMiddlewareError<M: Middleware> {
-    #[error("{0}")]
+    #[error("Error locking mutex")]
     /// Thrown when the internal call to the signer fails
-    MutexError(PoisonError<bool>),
+    MutexLockError,
 
     /// Thrown when the internal middleware errors
     #[error("{0}")]
@@ -217,7 +217,7 @@ where
     ) -> Result<PendingTransaction<'_, Self::Provider>, Self::Error> {
         // Block until no other threads are in the process of sending a txn.
         {
-            let mut running = self.txn_running.lock().unwrap(); // todo no unwrap
+            let mut running = self.txn_running.lock().map_err(|_| Self::Error::MutexLockError)?;
             while *running {
                 running = self.condvar.wait(running).unwrap();
             }
