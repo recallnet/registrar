@@ -15,7 +15,7 @@ abigen!(
 );
 
 pub type DefaultSignerMiddleware =
-    SignerMiddleware<NonceManagerMiddleware<Provider<Http>>, Wallet<SigningKey>>;
+    SerializingMiddleware<SignerMiddleware<NonceManagerMiddleware<Provider<Http>>, Wallet<SigningKey>>>;
 pub type Faucet = FaucetContract<DefaultSignerMiddleware>;
 
 /// Drip request.
@@ -148,12 +148,25 @@ pub fn with_turnstile(
     warp::any().map(move || turnstile.clone())
 }
 
-/// TODO
+/// Ethers middleware to serialize all transactions to avoid nonce ordering issues.
 #[derive(Debug)]
 pub struct SerializingMiddleware<M> {
     inner: M,
     txn_running: Mutex<bool>,
     condvar: Condvar,
+}
+
+impl<M> SerializingMiddleware<M>
+where
+    M: Middleware,
+{
+    pub fn new(inner: M) -> Self {
+        Self {
+            inner,
+            txn_running: Mutex::new(false),
+            condvar: Condvar::new(),
+        }
+    }
 }
 
 #[derive(Error, Debug)]
