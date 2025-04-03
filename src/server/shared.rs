@@ -1,11 +1,14 @@
-use std::convert::Infallible;
-use std::sync::{Arc, Condvar, Mutex};
 use async_trait::async_trait;
 use cf_turnstile::TurnstileClient;
 use ethers::middleware::{Middleware, MiddlewareError};
-use ethers::prelude::{abigen, k256::ecdsa::SigningKey, BlockId, Http, NonceManagerMiddleware, PendingTransaction, Provider, SignerMiddleware, Wallet};
 use ethers::prelude::transaction::eip2718::TypedTransaction;
+use ethers::prelude::{
+    abigen, k256::ecdsa::SigningKey, BlockId, Http, NonceManagerMiddleware, PendingTransaction,
+    Provider, SignerMiddleware, Wallet,
+};
 use serde::{Deserialize, Serialize};
+use std::convert::Infallible;
+use std::sync::{Arc, Condvar, Mutex};
 use thiserror::Error;
 use warp::{http::StatusCode, Filter, Rejection, Reply};
 
@@ -14,8 +17,9 @@ abigen!(
     r#"[{"name": "drip","type": "function","inputs": [{"name": "recipient","type": "address","internalType": "address payable"}, {"internalType":"string[]","name":"keys","type":"string[]"}],"outputs": [],"stateMutability": "nonpayable"}]"#
 );
 
-pub type DefaultSignerMiddleware =
-    SerializingMiddleware<SignerMiddleware<NonceManagerMiddleware<Provider<Http>>, Wallet<SigningKey>>>;
+pub type DefaultSignerMiddleware = SerializingMiddleware<
+    SignerMiddleware<NonceManagerMiddleware<Provider<Http>>, Wallet<SigningKey>>,
+>;
 pub type Faucet = FaucetContract<DefaultSignerMiddleware>;
 
 /// Drip request.
@@ -230,18 +234,31 @@ where
     ) -> Result<PendingTransaction<'_, Self::Provider>, Self::Error> {
         // Block until no other threads are in the process of sending a txn.
         {
-            let mut running = self.txn_running.lock().map_err(|_| Self::Error::MutexLockError)?;
+            let mut running = self
+                .txn_running
+                .lock()
+                .map_err(|_| Self::Error::MutexLockError)?;
             while *running {
-                running = self.condvar.wait(running).map_err(|_| Self::Error::MutexLockError)?;
+                running = self
+                    .condvar
+                    .wait(running)
+                    .map_err(|_| Self::Error::MutexLockError)?;
             }
             *running = true;
         }
 
-        let result = self.inner.send_transaction(tx, block).await.map_err(MiddlewareError::from_err);
+        let result = self
+            .inner
+            .send_transaction(tx, block)
+            .await
+            .map_err(MiddlewareError::from_err);
 
         // Wake up the next thread waiting to send a txn
         {
-            let mut running = self.txn_running.lock().map_err(|_| Self::Error::MutexLockError)?;
+            let mut running = self
+                .txn_running
+                .lock()
+                .map_err(|_| Self::Error::MutexLockError)?;
             *running = false;
             self.condvar.notify_one();
         }
