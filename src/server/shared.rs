@@ -232,7 +232,7 @@ where
         {
             let mut running = self.txn_running.lock().map_err(|_| Self::Error::MutexLockError)?;
             while *running {
-                running = self.condvar.wait(running).unwrap();
+                running = self.condvar.wait(running).map_err(|_| Self::Error::MutexLockError)?;
             }
             *running = true;
         }
@@ -241,7 +241,7 @@ where
 
         // Wake up the next thread waiting to send a txn
         {
-            let mut running = self.txn_running.lock().unwrap(); // todo no unwrap
+            let mut running = self.txn_running.lock().map_err(|_| Self::Error::MutexLockError)?;
             *running = false;
             self.condvar.notify_one();
         }
