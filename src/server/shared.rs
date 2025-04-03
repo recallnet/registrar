@@ -1,5 +1,5 @@
 use std::convert::Infallible;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Condvar, Mutex, PoisonError};
 use async_trait::async_trait;
 use cf_turnstile::TurnstileClient;
 use ethers::middleware::{Middleware, MiddlewareError};
@@ -152,12 +152,17 @@ pub fn with_turnstile(
 #[derive(Debug)]
 pub struct SerializingMiddleware<M> {
     inner: M,
-    mutex: Mutex<()>
+    txn_running: Mutex<bool>,
+    condvar: Condvar,
 }
 
 #[derive(Error, Debug)]
 /// Thrown when an error happens in the SerializingMiddleware
 pub enum SerializingMiddlewareError<M: Middleware> {
+    #[error("{0}")]
+    /// Thrown when the internal call to the signer fails
+    MutexError(PoisonError<bool>),
+
     /// Thrown when the internal middleware errors
     #[error("{0}")]
     MiddlewareError(M::Error),
@@ -201,19 +206,33 @@ where
         _: Option<BlockId>,
     ) -> Result<(), Self::Error> {
         Err(Self::Error::NotImplemented)
-        //Ok(self.inner().fill_transaction(tx, block).await.map_err(MiddlewareError::from_err)?)
     }
 
-    /// Signs and broadcasts the transaction. The optional parameter `block` can be passed so that
-    /// gas cost and nonce calculations take it into account. For simple transactions this can be
-    /// left to `None`.
+    /// Sends the transaction, while serializing txn sending with all other requests using the same
+    /// Provider.
     async fn send_transaction<T: Into<TypedTransaction> + Send + Sync>(
         &self,
         tx: T,
         block: Option<BlockId>,
     ) -> Result<PendingTransaction<'_, Self::Provider>, Self::Error> {
-        //let mut tx = tx.into();
+        // Block until no other threads are in the process of sending a txn.
+        {
+            let mut running = self.txn_running.lock().unwrap(); // todo no unwrap
+            while *running {
+                running = self.condvar.wait(running).unwrap();
+            }
+            *running = true;
+        }
 
-        self.inner.send_transaction(tx, block).await.map_err(MiddlewareError::from_err)
+        let result = self.inner.send_transaction(tx, block).await.map_err(MiddlewareError::from_err);
+
+        // Wake up the next thread waiting to send a txn
+        {
+            let mut running = self.txn_running.lock().unwrap(); // todo no unwrap
+            *running = false;
+            self.condvar.notify_one();
+        }
+
+        result
     }
 }
