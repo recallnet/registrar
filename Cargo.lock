@@ -2690,6 +2690,7 @@ name = "recall_registrar"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "cf-turnstile",
  "clap",
  "ethers",
@@ -2704,6 +2705,7 @@ dependencies = [
  "serde",
  "serde_json",
  "stderrlog",
+ "thiserror",
  "tokio",
  "warp",
  "warp-real-ip",

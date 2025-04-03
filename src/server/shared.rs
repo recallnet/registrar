@@ -1,12 +1,12 @@
 use std::convert::Infallible;
-use std::sync::Arc;
-
+use std::sync::{Arc, Mutex};
+use async_trait::async_trait;
 use cf_turnstile::TurnstileClient;
-use ethers::prelude::{
-    abigen, k256::ecdsa::SigningKey, Http, NonceManagerMiddleware, Provider, SignerMiddleware,
-    Wallet,
-};
+use ethers::middleware::{Middleware, MiddlewareError};
+use ethers::prelude::{abigen, k256::ecdsa::SigningKey, BlockId, Http, NonceManagerMiddleware, PendingTransaction, Provider, SignerMiddleware, Wallet};
+use ethers::prelude::transaction::eip2718::TypedTransaction;
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 use warp::{http::StatusCode, Filter, Rejection, Reply};
 
 abigen!(
@@ -146,4 +146,69 @@ pub fn with_turnstile(
     turnstile: Arc<TurnstileClient>,
 ) -> impl Filter<Extract = (Arc<TurnstileClient>,), Error = Infallible> + Clone {
     warp::any().map(move || turnstile.clone())
+}
+
+/// TODO
+#[derive(Debug)]
+pub struct SerializingMiddleware<M> {
+    inner: M,
+    mutex: Mutex<()>
+}
+
+#[derive(Error, Debug)]
+/// Thrown when an error happens in the SerializingMiddleware
+pub enum SerializingMiddlewareError<M: Middleware> {
+    /// Thrown when the internal middleware errors
+    #[error("{0}")]
+    MiddlewareError(M::Error),
+}
+
+impl<M: Middleware> MiddlewareError for SerializingMiddlewareError<M> {
+    type Inner = M::Error;
+
+    fn from_err(src: M::Error) -> Self {
+        SerializingMiddlewareError::MiddlewareError(src)
+    }
+
+    fn as_inner(&self) -> Option<&Self::Inner> {
+        match self {
+            SerializingMiddlewareError::MiddlewareError(e) => Some(e),
+        }
+    }
+}
+
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+impl<M> Middleware for SerializingMiddleware<M>
+where
+    M: Middleware,
+{
+    type Error = SerializingMiddlewareError<M>;
+    type Provider = M::Provider;
+    type Inner = M;
+
+    fn inner(&self) -> &M {
+        &self.inner
+    }
+
+    async fn fill_transaction(
+        &self,
+        tx: &mut TypedTransaction,
+        block: Option<BlockId>,
+    ) -> Result<(), Self::Error> {
+        Ok(self.inner().fill_transaction(tx, block).await.map_err(MiddlewareError::from_err)?)
+    }
+
+    /// Signs and broadcasts the transaction. The optional parameter `block` can be passed so that
+    /// gas cost and nonce calculations take it into account. For simple transactions this can be
+    /// left to `None`.
+    async fn send_transaction<T: Into<TypedTransaction> + Send + Sync>(
+        &self,
+        tx: T,
+        block: Option<BlockId>,
+    ) -> Result<PendingTransaction<'_, Self::Provider>, Self::Error> {
+        //let mut tx = tx.into();
+
+        self.inner.send_transaction(tx, block).await.map_err(MiddlewareError::from_err)
+    }
 }
