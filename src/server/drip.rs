@@ -1,4 +1,6 @@
-use crate::server::shared::{DefaultSignerMiddleware, Faucet, FaucetEmpty, TooManyRequests};
+use crate::server::shared::{
+    DefaultSignerMiddleware, Faucet, FaucetEmpty, TooManyRequests, TransactionGuard,
+};
 use crate::server::{
     shared::{with_faucet, with_turnstile, BadRequest, DripRequest},
     util::log_request_body,
@@ -10,6 +12,7 @@ use ethers::utils::keccak256;
 use log::info;
 use once_cell::sync::Lazy;
 use serde_json::json;
+use std::convert::Infallible;
 use std::net::IpAddr;
 use std::sync::Arc;
 use warp::{Filter, Rejection, Reply};
@@ -33,6 +36,7 @@ pub fn drip_route(
     trusted_proxy_ips: Vec<IpAddr>,
     faucet: Faucet,
     turnstile: Arc<TurnstileClient>,
+    tx_guard: Arc<TransactionGuard>,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     warp::path("drip")
         .and(warp::post())
@@ -41,7 +45,15 @@ pub fn drip_route(
         .and(real_ip(trusted_proxy_ips))
         .and(with_faucet(faucet))
         .and(with_turnstile(turnstile))
+        .and(with_tx_guard(tx_guard))
         .and_then(handle_drip)
+}
+
+/// Filter to pass the transaction guard to the request handler.
+fn with_tx_guard(
+    tx_guard: Arc<TransactionGuard>,
+) -> impl Filter<Extract = (Arc<TransactionGuard>,), Error = Infallible> + Clone {
+    warp::any().map(move || tx_guard.clone())
 }
 
 /// Handles the `/drip` request.
@@ -50,6 +62,7 @@ pub async fn handle_drip(
     addr: Option<IpAddr>,
     faucet: Faucet,
     turnstile: Arc<TurnstileClient>,
+    tx_guard: Arc<TransactionGuard>,
 ) -> anyhow::Result<impl Reply, Rejection> {
     log_request_body("drip", &format!("{}", req));
 
@@ -88,13 +101,19 @@ pub async fn handle_drip(
         req.address, ip_string
     );
 
-    let res = drip(faucet, to_address, vec![req.address, ip_string], req.wait)
-        .await
-        .map_err(|e| {
-            Rejection::from(BadRequest {
-                message: format!("drip error: {}", e),
-            })
-        })?;
+    let res = drip(
+        faucet,
+        tx_guard,
+        to_address,
+        vec![req.address, ip_string],
+        req.wait,
+    )
+    .await
+    .map_err(|e| {
+        Rejection::from(BadRequest {
+            message: format!("drip error: {}", e),
+        })
+    })?;
     match res {
         DripResult::Success(tx) | DripResult::Pending(tx) => {
             Ok(warp::reply::json(&json!({"tx_hash": tx})))
@@ -109,12 +128,13 @@ pub async fn handle_drip(
 /// This will trigger the FVM to create an account for the address.
 async fn drip(
     faucet: Faucet,
+    tx_guard: Arc<TransactionGuard>,
     to_address: Address,
     keys: Vec<String>,
     wait: Option<bool>,
 ) -> anyhow::Result<DripResult> {
     let tx = faucet.drip(to_address, keys);
-    let tx_pending = tx.send().await;
+    let tx_pending = tx_guard.send(|| async { tx.send().await }).await;
     match tx_pending {
         Ok(tx) => {
             let hash = tx.tx_hash();

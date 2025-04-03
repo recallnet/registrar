@@ -9,7 +9,7 @@ use log::info;
 use util::log_failed_request;
 use warp::{Filter, Rejection, Reply};
 
-use crate::server::shared::{DefaultSignerMiddleware, Faucet, FaucetContract};
+use crate::server::shared::{DefaultSignerMiddleware, Faucet, FaucetContract, TransactionGuard};
 use crate::Cli;
 
 mod drip;
@@ -38,12 +38,13 @@ pub async fn run(cli: Cli) -> anyhow::Result<()> {
 
     let faucet: Faucet = FaucetContract::new(faucet_address, client.clone());
     let turnstile = TurnstileClient::new(cli.ts_secret_key.into());
+    let tx_guard = Arc::new(TransactionGuard::new());
 
     let health_route = warp::path!("health")
         .and(warp::get())
         .and_then(handle_health);
-    let register_route = register::register_route(client.clone());
-    let drip_route = drip::drip_route(trusted_proxy_ips, faucet, Arc::new(turnstile));
+    let register_route = register::register_route(client.clone(), tx_guard.clone());
+    let drip_route = drip::drip_route(trusted_proxy_ips, faucet, Arc::new(turnstile), tx_guard);
     let log = warp::log::custom(log_failed_request);
     let request_metrics = warp::log::custom(util::request_metrics);
 

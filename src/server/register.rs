@@ -1,6 +1,8 @@
-use crate::server::shared::DefaultSignerMiddleware;
+use crate::server::shared::{
+    BadRequest, DefaultSignerMiddleware, RegisterRequest, TransactionGuard,
+};
 use crate::server::{
-    shared::{with_client, BadRequest, RegisterRequest},
+    shared::{with_client, with_tx_guard},
     util::log_request_body,
 };
 use anyhow::anyhow;
@@ -23,12 +25,14 @@ enum RegisterResult {
 /// Route filter for `/register` endpoint.
 pub fn register_route(
     client: Arc<DefaultSignerMiddleware>,
+    tx_guard: Arc<TransactionGuard>,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     warp::path("register")
         .and(warp::post())
         .and(warp::header::exact("content-type", "application/json"))
         .and(warp::body::json())
         .and(with_client(client))
+        .and(with_tx_guard(tx_guard))
         .and_then(handle_register)
 }
 
@@ -36,6 +40,7 @@ pub fn register_route(
 pub async fn handle_register(
     req: RegisterRequest,
     client: Arc<DefaultSignerMiddleware>,
+    tx_guard: Arc<TransactionGuard>,
 ) -> anyhow::Result<impl Reply, Rejection> {
     log_request_body("register", &format!("{}", req));
 
@@ -45,11 +50,13 @@ pub async fn handle_register(
         })
     })?;
 
-    let res = register(client, to_address, req.wait).await.map_err(|e| {
-        Rejection::from(BadRequest {
-            message: format!("register error: {}", e),
-        })
-    })?;
+    let res = register(client, tx_guard, to_address, req.wait)
+        .await
+        .map_err(|e| {
+            Rejection::from(BadRequest {
+                message: format!("register error: {}", e),
+            })
+        })?;
     match res {
         RegisterResult::Success(tx) | RegisterResult::Pending(tx) => {
             Ok(warp::reply::json(&json!({"tx_hash": tx})))
@@ -62,6 +69,7 @@ pub async fn handle_register(
 /// This will trigger the FVM to create an account for the address.
 async fn register(
     client: Arc<DefaultSignerMiddleware>,
+    tx_guard: Arc<TransactionGuard>,
     to_address: Address,
     wait: Option<bool>,
 ) -> anyhow::Result<RegisterResult> {
@@ -71,7 +79,11 @@ async fn register(
         .value(U256::zero())
         .max_priority_fee_per_gas(fee)
         .max_fee_per_gas(fee_cap);
-    let tx_pending = client.send_transaction(tx, None).await;
+
+    let tx_pending = tx_guard
+        .send(|| async { client.send_transaction(tx, None).await })
+        .await;
+
     match tx_pending {
         Ok(tx) => {
             let hash = tx.tx_hash();

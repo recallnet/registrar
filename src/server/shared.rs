@@ -1,5 +1,7 @@
 use std::convert::Infallible;
+use std::future::Future;
 use std::sync::Arc;
+use tokio::sync::Mutex as TokioMutex;
 
 use cf_turnstile::TurnstileClient;
 use ethers::prelude::{
@@ -146,4 +148,33 @@ pub fn with_turnstile(
     turnstile: Arc<TurnstileClient>,
 ) -> impl Filter<Extract = (Arc<TurnstileClient>,), Error = Infallible> + Clone {
     warp::any().map(move || turnstile.clone())
+}
+
+/// A guard for synchronizing transaction sending to prevent nonce conflicts
+pub struct TransactionGuard {
+    lock: TokioMutex<()>,
+}
+
+impl TransactionGuard {
+    pub fn new() -> Self {
+        Self {
+            lock: TokioMutex::new(()),
+        }
+    }
+
+    pub async fn send<F, Fut, T>(&self, f: F) -> T
+    where
+        F: FnOnce() -> Fut,
+        Fut: Future<Output = T>,
+    {
+        let _guard = self.lock.lock().await;
+        f().await
+    }
+}
+
+/// Filter to pass the transaction guard to the request handler.
+pub fn with_tx_guard(
+    tx_guard: Arc<TransactionGuard>,
+) -> impl Filter<Extract = (Arc<TransactionGuard>,), Error = Infallible> + Clone {
+    warp::any().map(move || tx_guard.clone())
 }
