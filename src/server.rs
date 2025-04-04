@@ -9,7 +9,7 @@ use log::info;
 use util::log_failed_request;
 use warp::{Filter, Rejection, Reply};
 
-use crate::server::shared::{DefaultSignerMiddleware, Faucet, FaucetContract};
+use crate::server::shared::{Faucet, FaucetContract, SerializingMiddleware};
 use crate::Cli;
 
 mod drip;
@@ -32,8 +32,9 @@ pub async fn run(cli: Cli) -> anyhow::Result<()> {
     let chain_id = provider.get_chainid().await?.as_u64();
     let wallet = LocalWallet::from_bytes(&private_key)?.with_chain_id(chain_id);
     let provider_with_nonce = NonceManagerMiddleware::new(provider, wallet.address());
-    let client: DefaultSignerMiddleware = SignerMiddleware::new(provider_with_nonce, wallet);
-    let client = Arc::new(client);
+    let provider_with_signer = SignerMiddleware::new(provider_with_nonce, wallet);
+    let provider_with_serializer = SerializingMiddleware::new(provider_with_signer);
+    let client = Arc::new(provider_with_serializer);
     let faucet: Faucet = FaucetContract::new(faucet_address, client.clone());
     let turnstile = TurnstileClient::new(cli.ts_secret_key.into());
 

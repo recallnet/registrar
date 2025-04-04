@@ -1,12 +1,15 @@
-use std::convert::Infallible;
-use std::sync::Arc;
-
+use async_trait::async_trait;
 use cf_turnstile::TurnstileClient;
+use ethers::middleware::{Middleware, MiddlewareError};
+use ethers::prelude::transaction::eip2718::TypedTransaction;
 use ethers::prelude::{
-    abigen, k256::ecdsa::SigningKey, Http, NonceManagerMiddleware, Provider, SignerMiddleware,
-    Wallet,
+    abigen, k256::ecdsa::SigningKey, BlockId, Http, NonceManagerMiddleware, PendingTransaction,
+    Provider, SignerMiddleware, Wallet,
 };
 use serde::{Deserialize, Serialize};
+use std::convert::Infallible;
+use std::sync::{Arc, Condvar, Mutex};
+use thiserror::Error;
 use warp::{http::StatusCode, Filter, Rejection, Reply};
 
 abigen!(
@@ -14,8 +17,9 @@ abigen!(
     r#"[{"name": "drip","type": "function","inputs": [{"name": "recipient","type": "address","internalType": "address payable"}, {"internalType":"string[]","name":"keys","type":"string[]"}],"outputs": [],"stateMutability": "nonpayable"}]"#
 );
 
-pub type DefaultSignerMiddleware =
-    SignerMiddleware<NonceManagerMiddleware<Provider<Http>>, Wallet<SigningKey>>;
+pub type DefaultSignerMiddleware = SerializingMiddleware<
+    SignerMiddleware<NonceManagerMiddleware<Provider<Http>>, Wallet<SigningKey>>,
+>;
 pub type Faucet = FaucetContract<DefaultSignerMiddleware>;
 
 /// Drip request.
@@ -146,4 +150,132 @@ pub fn with_turnstile(
     turnstile: Arc<TurnstileClient>,
 ) -> impl Filter<Extract = (Arc<TurnstileClient>,), Error = Infallible> + Clone {
     warp::any().map(move || turnstile.clone())
+}
+
+/// Ethers middleware to serialize all transactions to avoid nonce ordering issues.
+#[derive(Debug)]
+pub struct SerializingMiddleware<M> {
+    inner: M,
+    txn_running: Mutex<bool>,
+    condvar: Condvar,
+}
+
+impl<M> SerializingMiddleware<M>
+where
+    M: Middleware,
+{
+    pub fn new(inner: M) -> Self {
+        Self {
+            inner,
+            txn_running: Mutex::new(false),
+            condvar: Condvar::new(),
+        }
+    }
+
+    /// Call before sending a txn.  Blocks until no other threads are in the process of sending a
+    /// txn.  Must be paired with a corresponding call to txn_complete.
+    pub async fn txn_start(&self) -> Result<(), SerializingMiddlewareError<M>> {
+        let mut running = self
+            .txn_running
+            .lock()
+            .map_err(|_| SerializingMiddlewareError::MutexLockError)?;
+        while *running {
+            running = self
+                .condvar
+                .wait(running)
+                .map_err(|_| SerializingMiddlewareError::MutexLockError)?;
+        }
+        *running = true;
+        Ok(())
+    }
+
+    /// Call after sending a txn.  Wakes up the next thread waiting to send a txn.  Must be called
+    /// after a corresponding call to txn_begin.
+    pub async fn txn_complete(&self) -> Result<(), SerializingMiddlewareError<M>> {
+        let mut running = self
+            .txn_running
+            .lock()
+            .map_err(|_| SerializingMiddlewareError::MutexLockError)?;
+        *running = false;
+        self.condvar.notify_one();
+        Ok(())
+    }
+}
+
+#[derive(Error, Debug)]
+/// Thrown when an error happens in the SerializingMiddleware
+pub enum SerializingMiddlewareError<M: Middleware> {
+    #[error("Error locking mutex")]
+    /// Thrown when the internal call to the signer fails
+    MutexLockError,
+
+    /// Thrown when the internal middleware errors
+    #[error("{0}")]
+    MiddlewareError(M::Error),
+
+    #[error("Not Implemented")]
+    NotImplemented,
+}
+
+impl<M: Middleware> MiddlewareError for SerializingMiddlewareError<M> {
+    type Inner = M::Error;
+
+    fn from_err(src: M::Error) -> Self {
+        SerializingMiddlewareError::MiddlewareError(src)
+    }
+
+    fn as_inner(&self) -> Option<&Self::Inner> {
+        match self {
+            SerializingMiddlewareError::MiddlewareError(e) => Some(e),
+            _ => None,
+        }
+    }
+}
+
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+impl<M> Middleware for SerializingMiddleware<M>
+where
+    M: Middleware,
+{
+    type Error = SerializingMiddlewareError<M>;
+    type Provider = M::Provider;
+    type Inner = M;
+
+    fn inner(&self) -> &M {
+        &self.inner
+    }
+
+    /// This fails because if this code path is used and passed down to the NonceManagerMiddleware,
+    /// then the nonce generation gets separated from txn execution and it becomes harder to 
+    /// serialize things in a way that avoids nonce errors.  Currently we don't use this function 
+    /// in our code, so just avoiding that problem for now and relying on the path where the nonce
+    /// gets set in send_transaction.
+    async fn fill_transaction(
+        &self,
+        _: &mut TypedTransaction,
+        _: Option<BlockId>,
+    ) -> Result<(), Self::Error> {
+        Err(Self::Error::NotImplemented)
+    }
+
+    /// Sends the transaction, while serializing txn sending with all other requests using the same
+    /// Provider.
+    async fn send_transaction<T: Into<TypedTransaction> + Send + Sync>(
+        &self,
+        tx: T,
+        block: Option<BlockId>,
+    ) -> Result<PendingTransaction<'_, Self::Provider>, Self::Error> {
+        self.txn_start().await?;
+
+        let result = self
+            .inner
+            .send_transaction(tx, block)
+            .await
+            .map_err(MiddlewareError::from_err);
+
+        self.txn_complete().await?;
+
+        result
+    }
 }
