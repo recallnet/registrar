@@ -246,6 +246,11 @@ where
         &self.inner
     }
 
+    /// This fails because if this code path is used and passed down to the NonceManagerMiddleware,
+    /// then the nonce generation gets separated from txn execution and it becomes harder to 
+    /// serialize things in a way that avoids nonce errors.  Currently we don't use this function 
+    /// in our code, so just avoiding that problem for now and relying on the path where the nonce
+    /// gets set in send_transaction.
     async fn fill_transaction(
         &self,
         _: &mut TypedTransaction,
