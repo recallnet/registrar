@@ -171,6 +171,35 @@ where
             condvar: Condvar::new(),
         }
     }
+
+    /// Call before sending a txn.  Blocks until no other threads are in the process of sending a
+    /// txn.  Must be paired with a corresponding call to txn_complete.
+    pub async fn txn_start(&self) -> Result<(), SerializingMiddlewareError<M>> {
+        let mut running = self
+            .txn_running
+            .lock()
+            .map_err(|_| SerializingMiddlewareError::MutexLockError)?;
+        while *running {
+            running = self
+                .condvar
+                .wait(running)
+                .map_err(|_| SerializingMiddlewareError::MutexLockError)?;
+        }
+        *running = true;
+        Ok(())
+    }
+
+    /// Call after sending a txn.  Wakes up the next thread waiting to send a txn.  Must be called
+    /// after a corresponding call to txn_begin.
+    pub async fn txn_complete(&self) -> Result<(), SerializingMiddlewareError<M>> {
+        let mut running = self
+            .txn_running
+            .lock()
+            .map_err(|_| SerializingMiddlewareError::MutexLockError)?;
+        *running = false;
+        self.condvar.notify_one();
+        Ok(())
+    }
 }
 
 #[derive(Error, Debug)]
@@ -232,20 +261,7 @@ where
         tx: T,
         block: Option<BlockId>,
     ) -> Result<PendingTransaction<'_, Self::Provider>, Self::Error> {
-        // Block until no other threads are in the process of sending a txn.
-        {
-            let mut running = self
-                .txn_running
-                .lock()
-                .map_err(|_| Self::Error::MutexLockError)?;
-            while *running {
-                running = self
-                    .condvar
-                    .wait(running)
-                    .map_err(|_| Self::Error::MutexLockError)?;
-            }
-            *running = true;
-        }
+        self.txn_start().await?;
 
         let result = self
             .inner
@@ -253,15 +269,7 @@ where
             .await
             .map_err(MiddlewareError::from_err);
 
-        // Wake up the next thread waiting to send a txn
-        {
-            let mut running = self
-                .txn_running
-                .lock()
-                .map_err(|_| Self::Error::MutexLockError)?;
-            *running = false;
-            self.condvar.notify_one();
-        }
+        self.txn_complete().await?;
 
         result
     }
