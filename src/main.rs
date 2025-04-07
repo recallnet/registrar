@@ -1,7 +1,7 @@
 use std::net::{IpAddr, SocketAddr};
 
 use clap::{Parser, Subcommand};
-use ethers::prelude::Address;
+use alloy::primitives::Address;
 use stderrlog::Timestamp;
 
 use crate::server::run;

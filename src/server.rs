@@ -1,15 +1,18 @@
 use std::sync::Arc;
 
+use alloy::{
+    network::EthereumWallet,
+    providers::{ProviderBuilder, fillers::{CachedNonceManager, NonceFiller}},
+    signers::local::PrivateKeySigner,
+};
 use anyhow::Context;
 use cf_turnstile::TurnstileClient;
-use ethers::prelude::{
-    Http, LocalWallet, Middleware, NonceManagerMiddleware, Provider, Signer, SignerMiddleware,
-};
 use log::info;
 use util::log_failed_request;
 use warp::{Filter, Rejection, Reply};
+use url::Url;
 
-use crate::server::shared::{DefaultSignerMiddleware, Faucet, FaucetContract};
+use crate::server::shared::FaucetContract;
 use crate::Cli;
 
 mod drip;
@@ -28,13 +31,20 @@ pub async fn run(cli: Cli) -> anyhow::Result<()> {
     let faucet_address = cli.faucet_address;
     let evm_rpc_url = cli.evm_rpc_url;
 
-    let provider = Provider::<Http>::try_from(evm_rpc_url)?;
-    let chain_id = provider.get_chainid().await?.as_u64();
-    let wallet = LocalWallet::from_bytes(&private_key)?.with_chain_id(chain_id);
-    let provider_with_nonce = NonceManagerMiddleware::new(provider, wallet.address());
-    let client: DefaultSignerMiddleware = SignerMiddleware::new(provider_with_nonce, wallet);
-    let client = Arc::new(client);
-    let faucet: Faucet = FaucetContract::new(faucet_address, client.clone());
+    // Create a signer from the private key
+    let signer = PrivateKeySigner::from_slice(&private_key)?;
+    let wallet = EthereumWallet::from(signer);
+
+    // Create a provider
+    let url = Url::parse(&evm_rpc_url)?;
+    let provider = ProviderBuilder::new()
+        .wallet(wallet)
+        .filler(NonceFiller::<CachedNonceManager>::default())
+        .on_http(url);
+    let provider = Arc::new(provider);
+
+    
+    let faucet = FaucetContract::new(faucet_address, provider.clone());
     let turnstile = TurnstileClient::new(cli.ts_secret_key.into());
 
     let health_route = warp::path!("health")
