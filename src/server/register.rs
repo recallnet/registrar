@@ -1,4 +1,4 @@
-use crate::server::shared::DefaultSignerMiddleware;
+use crate::server::shared::Provider;
 use crate::server::{
     shared::{with_client, BadRequest, RegisterRequest},
     util::log_request_body,
@@ -22,7 +22,7 @@ enum RegisterResult {
 
 /// Route filter for `/register` endpoint.
 pub fn register_route(
-    client: Arc<DefaultSignerMiddleware>,
+    client: Arc<Provider>,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     warp::path("register")
         .and(warp::post())
@@ -35,7 +35,7 @@ pub fn register_route(
 /// Handles the `/register` request.
 pub async fn handle_register(
     req: RegisterRequest,
-    client: Arc<DefaultSignerMiddleware>,
+    client: Arc<Provider>,
 ) -> anyhow::Result<impl Reply, Rejection> {
     log_request_body("register", &format!("{}", req));
 
@@ -61,7 +61,7 @@ pub async fn handle_register(
 /// Registers an address on the subnet by sending a transaction.
 /// This will trigger the FVM to create an account for the address.
 async fn register(
-    client: Arc<DefaultSignerMiddleware>,
+    client: Arc<Provider>,
     to_address: Address,
     wait: Option<bool>,
 ) -> anyhow::Result<RegisterResult> {

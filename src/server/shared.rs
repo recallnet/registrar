@@ -170,8 +170,8 @@ pub async fn handle_rejection(err: Rejection) -> Result<impl Reply, Infallible> 
 
 /// Filter to pass the client to the request handler.
 pub fn with_client(
-    client: Provider,
-) -> impl Filter<Extract = (Provider,), Error = Infallible> + Clone {
+    client: Arc<Provider>,
+) -> impl Filter<Extract = (Arc<Provider>,), Error = Infallible> + Clone {
     warp::any().map(move || client.clone())
 }
 
