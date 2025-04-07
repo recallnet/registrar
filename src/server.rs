@@ -50,7 +50,7 @@ pub async fn run(cli: Cli) -> anyhow::Result<()> {
     let health_route = warp::path!("health")
         .and(warp::get())
         .and_then(handle_health);
-    let register_route = register::register_route(client.clone());
+    let register_route = register::register_route(provider.clone());
     let drip_route = drip::drip_route(trusted_proxy_ips, faucet, Arc::new(turnstile));
     let log = warp::log::custom(log_failed_request);
     let request_metrics = warp::log::custom(util::request_metrics);
