@@ -5,7 +5,7 @@ use crate::server::{
 };
 use alloy::eips::{BlockId, BlockNumberOrTag};
 use alloy::{
-    primitives::{Address, U256, TxHash},
+    primitives::{Address, TxHash, U256},
     providers::Provider as AlloyProvider,
     rpc::types::eth::TransactionRequest,
 };
@@ -79,7 +79,9 @@ async fn register(
             let hash = tx.tx_hash().clone();
             let wait = wait.unwrap_or(true);
             if wait {
-                tx.get_receipt().await.map_err(|e| anyhow!("error getting receipt: {}", e))?;
+                tx.get_receipt()
+                    .await
+                    .map_err(|e| anyhow!("error getting receipt: {}", e))?;
                 Ok(RegisterResult::Success(hash))
             } else {
                 Ok(RegisterResult::Pending(hash))
@@ -97,17 +99,15 @@ async fn premium_estimation(provider: Arc<Provider>) -> anyhow::Result<(u128, u1
         .get_block(BlockId::latest())
         .await?
         .ok_or_else(|| anyhow!("Latest block not found"))?;
-    
+
     let base_fee_per_gas = block
         .header
         .base_fee_per_gas
         .ok_or_else(|| anyhow!("EIP-1559 not activated"))?;
 
-    let fee_history = provider.get_fee_history(
-        10, 
-        BlockNumberOrTag::Latest, 
-        &[5.0])
-    .await?;
+    let fee_history = provider
+        .get_fee_history(10, BlockNumberOrTag::Latest, &[5.0])
+        .await?;
 
     let max_priority_fee_per_gas = estimate_priority_fee(fee_history.reward.unwrap()); //overestimate?
     let potential_max_fee = base_fee_surged(u128::from(base_fee_per_gas));
@@ -137,11 +137,7 @@ fn base_fee_surged(base_fee_per_gas: u128) -> u128 {
 /// https://github.com/gakonst/ethers-rs/blob/ethers-v2.0.8/ethers-core/src/utils/mod.rs#L536
 /// Refer to the implementation for unit tests
 fn estimate_priority_fee(rewards: Vec<Vec<u128>>) -> u128 {
-    let mut rewards: Vec<u128> = rewards
-        .iter()
-        .map(|r| r[0])
-        .filter(|r| *r > 0)
-        .collect();
+    let mut rewards: Vec<u128> = rewards.iter().map(|r| r[0]).filter(|r| *r > 0).collect();
     if rewards.is_empty() {
         return 0;
     }
@@ -159,11 +155,7 @@ fn estimate_priority_fee(rewards: Vec<Vec<u128>>) -> u128 {
     let mut percentage_change: Vec<u128> = rewards
         .iter()
         .zip(rewards_copy.iter())
-        .map(|(a, b)| {
-            let a = u128::try_from(*a).expect("priority fee overflow");
-            let b = u128::try_from(*b).expect("priority fee overflow");
-            ((b - a) * 100) / a
-        })
+        .map(|(a, b)| ((b - a) * 100) / a)
         .collect();
     percentage_change.pop();
 
@@ -176,9 +168,7 @@ fn estimate_priority_fee(rewards: Vec<Vec<u128>>) -> u128 {
 
     // If we encountered a big change in fees at a certain position, then consider only
     // the values >= it.
-    let values = if *max_change >= 200
-        && (max_change_index >= (rewards.len() / 2))
-    {
+    let values = if *max_change >= 200 && (max_change_index >= (rewards.len() / 2)) {
         rewards[max_change_index..].to_vec()
     } else {
         rewards
