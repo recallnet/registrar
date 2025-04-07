@@ -2,15 +2,18 @@ use std::sync::Arc;
 
 use alloy::{
     network::EthereumWallet,
-    providers::{ProviderBuilder, fillers::{CachedNonceManager, NonceFiller}},
+    providers::{
+        fillers::{CachedNonceManager, NonceFiller},
+        ProviderBuilder,
+    },
     signers::local::PrivateKeySigner,
 };
 use anyhow::Context;
 use cf_turnstile::TurnstileClient;
 use log::info;
+use url::Url;
 use util::log_failed_request;
 use warp::{Filter, Rejection, Reply};
-use url::Url;
 
 use crate::server::shared::FaucetContract;
 use crate::Cli;
@@ -43,7 +46,6 @@ pub async fn run(cli: Cli) -> anyhow::Result<()> {
         .on_http(url);
     let provider = Arc::new(provider);
 
-    
     let faucet = FaucetContract::new(faucet_address, provider.clone());
     let turnstile = TurnstileClient::new(cli.ts_secret_key.into());
 
