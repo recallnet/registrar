@@ -43,12 +43,18 @@ pub type Provider = FillProvider<
     JoinFill<
         JoinFill<
             JoinFill<
-                Identity,
-                JoinFill<GasFiller, JoinFill<BlobGasFiller, JoinFill<NonceFiller, ChainIdFiller>>>,
+                JoinFill<
+                    Identity,
+                    JoinFill<
+                        GasFiller,
+                        JoinFill<BlobGasFiller, JoinFill<NonceFiller, ChainIdFiller>>,
+                    >,
+                >,
+                WalletFiller<EthereumWallet>,
             >,
-            WalletFiller<EthereumWallet>,
+            NonceFiller<CachedNonceManager>,
         >,
-        NonceFiller<CachedNonceManager>,
+        GasFiller,
     >,
     RootProvider,
 >;

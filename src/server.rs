@@ -3,7 +3,7 @@ use std::sync::Arc;
 use alloy::{
     network::EthereumWallet,
     providers::{
-        fillers::{CachedNonceManager, NonceFiller},
+        fillers::{CachedNonceManager, GasFiller, NonceFiller},
         ProviderBuilder,
     },
     signers::local::PrivateKeySigner,
@@ -43,6 +43,7 @@ pub async fn run(cli: Cli) -> anyhow::Result<()> {
     let provider = ProviderBuilder::new()
         .wallet(wallet)
         .filler(NonceFiller::<CachedNonceManager>::default())
+        .filler(GasFiller::default())
         .on_http(url);
     let provider = Arc::new(provider);
 

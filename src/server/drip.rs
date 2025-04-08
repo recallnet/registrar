@@ -3,8 +3,8 @@ use crate::server::{
     shared::{with_faucet, with_turnstile, BadRequest, DripRequest},
     util::log_request_body,
 };
-use alloy::primitives::{keccak256, Address, TxHash};
 use alloy::contract::Error;
+use alloy::primitives::{keccak256, Address, TxHash};
 use anyhow::anyhow;
 use cf_turnstile::{SiteVerifyRequest, TurnstileClient};
 use log::info;
@@ -120,7 +120,9 @@ async fn drip(
             let hash = tx.tx_hash().clone();
             let wait = wait.unwrap_or(true);
             if wait {
-                tx.get_receipt().await.or(Err(anyhow!("drip did not return a receipt")))?;
+                tx.get_receipt()
+                    .await
+                    .or(Err(anyhow!("drip did not return a receipt")))?;
                 Ok(DripResult::Success(hash))
             } else {
                 Ok(DripResult::Pending(hash))
