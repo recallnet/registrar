@@ -18,7 +18,6 @@ path = "src/main.rs"
 anyhow = "1.0.82"
 cf-turnstile = "0.2.0"
 clap = { version = "4.1.14", features = ["derive", "env"] }
-ethers = { version = "2.0.14", features = ["ws"] }
 hex = "0.4.3"
 lazy_static = "1.5"
 log = "0.4.22"
@@ -38,3 +37,5 @@ warp-real-ip = "0.2.0"
 # depending on the same _without_ the "vendored" feature, because then the Docker build for
 # for ARM64 on AMD64 will fail, it won't find the OpenSSL installation.
 openssl = { version = "0.10", features = ["vendored"] }
+alloy = { version = "0.13.0", features = ["full"] }
+url = "2.5.4"

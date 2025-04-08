@@ -1,22 +1,64 @@
 use std::convert::Infallible;
 use std::sync::Arc;
 
-use cf_turnstile::TurnstileClient;
-use ethers::prelude::{
-    abigen, k256::ecdsa::SigningKey, Http, NonceManagerMiddleware, Provider, SignerMiddleware,
-    Wallet,
+use alloy::{
+    network::EthereumWallet,
+    providers::{
+        fillers::{
+            BlobGasFiller, CachedNonceManager, ChainIdFiller, FillProvider, GasFiller, JoinFill,
+            NonceFiller, WalletFiller,
+        },
+        Identity, RootProvider,
+    },
+    sol,
 };
+use cf_turnstile::TurnstileClient;
 use serde::{Deserialize, Serialize};
 use warp::{http::StatusCode, Filter, Rejection, Reply};
+use FaucetContract::FaucetContractInstance;
 
-abigen!(
-    FaucetContract,
-    r#"[{"name": "drip","type": "function","inputs": [{"name": "recipient","type": "address","internalType": "address payable"}, {"internalType":"string[]","name":"keys","type":"string[]"}],"outputs": [],"stateMutability": "nonpayable"}]"#
-);
+sol! {
+    #[sol(rpc)]
+    contract FaucetContract {
+        #[derive(Debug)]
+        function drip(address payable recipient, string[] memory keys) external;
+        #[derive(Debug)]
+        function dripAmount() external view returns (uint256);
+        #[derive(Debug)]
+        function fund() external payable;
+        #[derive(Debug)]
+        function owner() external view returns (address);
+        #[derive(Debug)]
+        function renounceOwnership() external;
+        #[derive(Debug)]
+        function setDripAmount(uint256 amt) external;
+        #[derive(Debug)]
+        function supply() external view returns (uint256);
+        #[derive(Debug)]
+        function transferOwnership(address newOwner) external;
+    }
+}
 
-pub type DefaultSignerMiddleware =
-    SignerMiddleware<NonceManagerMiddleware<Provider<Http>>, Wallet<SigningKey>>;
-pub type Faucet = FaucetContract<DefaultSignerMiddleware>;
+pub type Provider = FillProvider<
+    JoinFill<
+        JoinFill<
+            JoinFill<
+                JoinFill<
+                    Identity,
+                    JoinFill<
+                        GasFiller,
+                        JoinFill<BlobGasFiller, JoinFill<NonceFiller, ChainIdFiller>>,
+                    >,
+                >,
+                WalletFiller<EthereumWallet>,
+            >,
+            NonceFiller<CachedNonceManager>,
+        >,
+        GasFiller,
+    >,
+    RootProvider,
+>;
+pub type Faucet = FaucetContractInstance<(), Arc<Provider>>;
 
 /// Drip request.
 #[derive(Deserialize)]
@@ -131,8 +173,8 @@ pub async fn handle_rejection(err: Rejection) -> Result<impl Reply, Infallible> 
 
 /// Filter to pass the client to the request handler.
 pub fn with_client(
-    client: Arc<DefaultSignerMiddleware>,
-) -> impl Filter<Extract = (Arc<DefaultSignerMiddleware>,), Error = Infallible> + Clone {
+    client: Arc<Provider>,
+) -> impl Filter<Extract = (Arc<Provider>,), Error = Infallible> + Clone {
     warp::any().map(move || client.clone())
 }
 

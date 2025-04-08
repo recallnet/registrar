@@ -1,12 +1,12 @@
-use crate::server::shared::{DefaultSignerMiddleware, Faucet, FaucetEmpty, TooManyRequests};
+use crate::server::shared::{Faucet, FaucetEmpty, TooManyRequests};
 use crate::server::{
     shared::{with_faucet, with_turnstile, BadRequest, DripRequest},
     util::log_request_body,
 };
+use alloy::contract::Error;
+use alloy::primitives::{keccak256, Address, TxHash};
 use anyhow::anyhow;
 use cf_turnstile::{SiteVerifyRequest, TurnstileClient};
-use ethers::prelude::{Address, ContractError, TxHash};
-use ethers::utils::keccak256;
 use log::info;
 use once_cell::sync::Lazy;
 use serde_json::json;
@@ -117,10 +117,12 @@ async fn drip(
     let tx_pending = tx.send().await;
     match tx_pending {
         Ok(tx) => {
-            let hash = tx.tx_hash();
+            let hash = tx.tx_hash().clone();
             let wait = wait.unwrap_or(true);
             if wait {
-                tx.await?.ok_or(anyhow!("drip did not return a receipt"))?;
+                tx.get_receipt()
+                    .await
+                    .or(Err(anyhow!("drip did not return a receipt")))?;
                 Ok(DripResult::Success(hash))
             } else {
                 Ok(DripResult::Pending(hash))
@@ -130,8 +132,8 @@ async fn drip(
     }
 }
 
-fn result_from_error(err: ContractError<DefaultSignerMiddleware>) -> DripResult {
-    if let Some(data) = err.as_revert() {
+fn result_from_error(err: Error) -> DripResult {
+    if let Some(data) = err.as_revert_data() {
         if data.len() < 4 {
             return DripResult::Failure(err.to_string());
         }
